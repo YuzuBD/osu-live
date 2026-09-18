@@ -263,16 +263,27 @@ class OsuReader:
         return self.process.read_u32(base + 0x4)
 
     def _gameplay_base(self, ruleset: int) -> int:
-        """The ``Gameplay`` instance.
+        """The ``Gameplay`` instance, or 0 when there is none right now.
 
         Builds disagree on where the ruleset keeps it (0x64 vs 0x68; see the
         module docstring), and the wrong one is often a non-zero pointer to an
-        unrelated object. So accept a candidate only when the score it points at
-        actually looks like a score: a loadable player name at +0x28.
+        unrelated object. So a candidate is accepted only when the score it
+        points at actually looks like a score: a loadable player name at +0x28.
+
+        The remembered layout is re-probed rather than trusted. It records
+        *which offset* this build uses, but says nothing about whether the
+        object behind it still exists -- and osu! frees ``Gameplay`` the moment
+        a map ends, after which the slot reads back as recycled data (a small
+        integer, a length, another object). Returning that unchecked is what
+        produced ``ReadProcessMemory(0x10039, 4)`` on a finished map.
         """
         if self._gameplay_old is not None:
             offset = _RULESET_GAMEPLAY_OLD if self._gameplay_old else _RULESET_GAMEPLAY_NEW
-            return self.process.read_u32(ruleset + offset)
+            cached = self._optional(
+                lambda offset=offset: self.process.read_u32(ruleset + offset), 0
+            )
+            if cached and self._looks_like_gameplay(cached):
+                return cached
         for old_layout in (True, False):
             offset = _RULESET_GAMEPLAY_OLD if old_layout else _RULESET_GAMEPLAY_NEW
             candidate = self._optional(
@@ -527,13 +538,23 @@ class OsuReader:
         return data
 
     def _cached_beatmap(self, base: int) -> BeatmapInfo:
-        """Beatmap metadata, re-read only when the selected map changes."""
+        """Beatmap metadata, re-read only when the selected map changes.
+
+        A null beatmap pointer is handled inside ``_read_beatmap``, but a
+        *recycled* one still throws on every field offset -- the same freed-page
+        situation as the gameplay object. Losing the map detail for a frame is
+        survivable; failing the whole read is not.
+        """
         if self._beatmap_cache is not None:
             checksum = self._beatmap_cache[0]
             if checksum and self._checksum_unchanged(base, checksum):
                 self._cleared("beatmap")
                 return self._beatmap_cache[1]
-        info = _read_beatmap(self.process, base)
+        try:
+            info = _read_beatmap(self.process, base)
+        except MemoryError_ as exc:
+            self._note_once("beatmap", str(exc))
+            return self._beatmap_cache[1] if self._beatmap_cache else BeatmapInfo()
         if info.filename or info.title:
             self._cleared("beatmap")
         else:
@@ -557,14 +578,21 @@ class OsuReader:
         process = self.process
         raw = 0
         if state_id == 2:  # play
-            gameplay_base = self._gameplay_base(ruleset)
-            score_base = process.read_u32(gameplay_base + _GAMEPLAY_SCORE) if gameplay_base else 0
-            if score_base:
-                pair = process.read_u32(score_base + _SCORE_MODS_PAIR)
-                if pair:
-                    raw = process.read_u32(pair + 0xC) ^ process.read_u32(pair + 0x8)
-                if process.read_u32(score_base + _GAMEPLAY_SCORE_PROCESSOR):
-                    raw |= MOD_SCOREV2
+            # The play's mods come off the score, which disappears with the
+            # play; losing them costs the mod chips, not the frame.
+            try:
+                gameplay_base = self._gameplay_base(ruleset)
+                score_base = (
+                    process.read_u32(gameplay_base + _GAMEPLAY_SCORE) if gameplay_base else 0
+                )
+                if score_base:
+                    pair = process.read_u32(score_base + _SCORE_MODS_PAIR)
+                    if pair:
+                        raw = process.read_u32(pair + 0xC) ^ process.read_u32(pair + 0x8)
+                    if process.read_u32(score_base + _GAMEPLAY_SCORE_PROCESSOR):
+                        raw |= MOD_SCOREV2
+            except MemoryError_:
+                return self.decode_mods(0)
         else:
             raw = process.read_ptr_ptr(self.pattern("menu_mods"))
         return self.decode_mods(raw)
@@ -649,6 +677,18 @@ class OsuReader:
             return []
 
     def _read_hit_errors(self, ruleset: int, limit: int = 256) -> list[int]:
+        """Judgement offsets for the current play, oldest kept first.
+
+        Guarded like the gameplay block itself: the score's hit-error list goes
+        away with the play, and a partially freed object can still present a
+        readable-looking pointer.
+        """
+        try:
+            return self._read_hit_errors_unguarded(ruleset, limit)
+        except MemoryError_:
+            return []
+
+    def _read_hit_errors_unguarded(self, ruleset: int, limit: int) -> list[int]:
         process = self.process
         gameplay_base = self._gameplay_base(ruleset)
         if not gameplay_base:
