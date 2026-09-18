@@ -1,0 +1,6 @@
+# Keep the working tree byte-identical to the repository on every platform, so
+# diffs stay readable and a checkout on Windows does not rewrite every line.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
