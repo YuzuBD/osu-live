@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>osu! live</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="backdrop" id="backdrop"></div>
+<div class="scrim"></div>
+
+<main id="shell">
+  <!-- HOME -->
+  <section class="page page-home" id="page-home">
+    <div class="status">
+      <span class="clock" id="home-clock">--:--</span>
+      <span class="conn"><i class="dot" id="home-dot"></i><span id="home-conn-text">连接中</span></span>
+    </div>
+
+    <div class="home-user">
+      <img class="home-avatar" id="home-avatar" alt="" hidden>
+      <div class="home-info">
+        <div class="home-name" id="home-name">—</div>
+        <div class="home-sub" id="home-sub"></div>
+        <div class="home-pp" id="home-pp">—</div>
+      </div>
+    </div>
+
+    <div class="home-now">
+      <div class="home-label">当前播放</div>
+      <div class="home-song" id="home-song">—</div>
+      <div class="home-diff" id="home-song-sub"></div>
+      <div class="home-tags" id="home-tags"></div>
+      <div class="home-progress">
+        <div class="progress-track"><div class="progress-fill" id="home-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="home-stats" id="home-stats"></div>
+  </section>
+
+  <!-- SELECT -->
+  <section class="page page-select" id="page-select">
+    <div class="status">
+      <span class="clock" id="sel-clock">--:--</span>
+      <span class="conn"><i class="dot" id="sel-dot"></i><span id="sel-conn-text">连接中</span></span>
+    </div>
+
+    <div class="sel-head">
+      <div class="sel-song"><span id="sel-artist"></span> - <span id="sel-title">—</span></div>
+      <div class="sel-diff" id="sel-diff"></div>
+      <div class="sel-mapper" id="sel-mapper"></div>
+    </div>
+
+    <div class="sel-attrs">
+      <div class="attr"><div class="attr-label">STARS</div><div class="attr-value is-stars" id="sel-stars">—</div></div>
+      <div class="attr"><div class="attr-label">AR</div><div class="attr-value" id="sel-ar">—</div></div>
+      <div class="attr"><div class="attr-label">OD</div><div class="attr-value" id="sel-od">—</div></div>
+      <div class="attr"><div class="attr-label">CS</div><div class="attr-value" id="sel-cs">—</div></div>
+      <div class="attr"><div class="attr-label">HP</div><div class="attr-value" id="sel-hp">—</div></div>
+    </div>
+
+    <div class="sel-pp">
+      <div class="sel-pp-label">理论 PP</div>
+      <div class="sel-pp-value" id="sel-maxpp">—</div>
+    </div>
+
+    <div class="sel-accs" id="sel-ppacc"></div>
+
+    <div class="sel-meta" id="sel-extra"></div>
+
+    <div class="sel-progress">
+      <div class="progress-bar">
+        <span class="progress-time" id="sel-time">0:00</span>
+        <div class="progress-track"><div class="progress-fill" id="sel-fill"></div></div>
+        <span class="mods-tag" id="sel-mods">NoMod</span>
+        <span class="progress-time" id="sel-total">0:00</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section class="page page-play" id="page-play">
+    <div class="status">
+      <span class="clock" id="play-clock">--:--</span>
+      <span class="conn"><i class="dot" id="play-dot"></i><span id="play-conn-text">连接中</span></span>
+    </div>
+
+    <div class="play-head">
+      <div class="play-song">
+        <div class="play-title" id="play-map">—</div>
+        <div class="play-diff" id="play-diff"></div>
+      </div>
+      <div class="play-hp"><div class="play-hp-fill" id="play-hp-fill"></div></div>
+    </div>
+
+    <div class="play-main">
+      <div class="play-left">
+        <div class="play-score" id="play-score">0</div>
+        <div class="play-combo" id="play-combo">0x</div>
+      </div>
+      <div class="play-right">
+        <div class="play-acc" id="play-acc">—</div>
+        <div class="play-pp" id="play-pp"></div>
+        <div class="play-grade" id="play-grade">—</div>
+      </div>
+    </div>
+
+    <div class="play-hits" id="play-judgements"></div>
+
+    <div class="play-progress">
+      <div class="progress-track"><div class="progress-fill" id="play-fill"></div></div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="page page-results" id="page-results">
+    <div class="status">
+      <span class="clock" id="res-clock">--:--</span>
+      <span class="conn"><i class="dot" id="res-dot"></i><span id="res-conn-text">连接中</span></span>
+    </div>
+
+    <div class="res-banner">
+      <span class="res-note">♪</span>
+      <div class="res-banner-text">
+        <div class="res-song" id="res-song">—</div>
+        <div class="res-diff" id="res-diff"></div>
+      </div>
+    </div>
+
+    <div class="res-player">
+      <img class="res-avatar" id="res-avatar" alt="" hidden>
+      <div class="res-player-text">
+        <div class="res-player-name" id="res-player">—</div>
+        <div class="res-player-pp" id="res-player-pp"></div>
+      </div>
+      <span class="mods" id="res-mods"></span>
+    </div>
+
+    <div class="res-main">
+      <div class="res-grade" id="res-grade">—</div>
+      <div class="res-score-box">
+        <div class="res-box-label">得分</div>
+        <div class="res-score" id="res-score">0</div>
+        <div class="res-score-land" id="res-score-land">0</div>
+      </div>
+    </div>
+
+    <div class="res-box-row">
+      <div class="res-box">
+        <div class="res-box-label">准确率</div>
+        <div class="res-box-value" id="res-acc">—</div>
+      </div>
+      <div class="res-box">
+        <div class="res-box-label">连击</div>
+        <div class="res-box-value" id="res-combo">—</div>
+      </div>
+      <div class="res-box is-pp">
+        <div class="res-box-label">表现</div>
+        <div class="res-box-value" id="res-pp">—</div>
+      </div>
+    </div>
+
+    <div class="res-hits" id="res-hits"></div>
+
+    <div class="res-foot" id="res-meta"></div>
+  </section>
+</main>
+
+<div class="offline" id="offline">
+  <div class="offline-icon">⚠</div>
+  <div class="offline-text" id="offline-hint">等待 osu! 连接...</div>
+</div>
+
+<div class="token-row" id="token-row" hidden>
+  <input class="token-input" id="token-input" type="password" placeholder="访问令牌" autocomplete="off">
+  <button class="token-save" id="token-save" type="button">确定</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
