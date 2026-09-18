@@ -1,39 +1,49 @@
 /* osu! live — phone overlay.
  *
- * Three screens driven purely by the game state the local program reports:
- *   home    menu / idle            → now-playing + account
- *   select  song select / editing  → map detail, star rating, theoretical pp
- *   play    a map is being played  → score, accuracy, grade, judgement counts
- *   results after a play finishes  → the finished score
+ * Four screens, one per game state:
  *
- * The page is chosen in `pickPage()`; every other function only paints.
+ *   home     menu / idle            → account, then the selected map
+ *   select   song select / editing  → map detail, star rating, pp ladder
+ *   play     a map is being played  → score anchored, accuracy/combo/pp live
+ *   results  after a play finishes  → grade and score, then what it was worth
+ *
+ * `pickPage()` decides which one shows; each `renderX()` only paints, and the
+ * paint functions are deliberately free of destructive writes -- a panel that
+ * cannot be fully populated must still leave the rest of the screen usable.
  */
 'use strict';
 
 const $ = (id) => document.getElementById(id);
 
-const els = {};
-for (const id of [
-  'backdrop', 'shell',
-  'page-home', 'page-select', 'page-play', 'page-results',
-  'home-clock', 'home-dot', 'home-conn-text', 'home-avatar', 'home-name',
-  'home-sub', 'home-pp', 'home-song', 'home-song-sub', 'home-tags', 'home-fill', 'home-stats',
-  'sel-artist', 'sel-title', 'sel-diff', 'sel-mapper', 'sel-stars', 'sel-ar',
-  'sel-od', 'sel-cs', 'sel-hp', 'sel-maxpp', 'sel-ppacc', 'sel-fill', 'sel-time',
-  'sel-mods', 'sel-total', 'sel-extra',
-  'play-map', 'play-diff', 'play-score', 'play-combo', 'play-grade', 'play-acc',
-  'play-pp', 'play-hp-fill', 'play-judgements', 'play-fill',
-  'res-grade', 'res-song', 'res-diff', 'res-score', 'res-score-land', 'res-acc', 'res-combo',
-  'res-pp', 'res-hits', 'res-mods', 'res-meta',
-  'res-avatar', 'res-player', 'res-player-pp',
-  'offline', 'offline-hint', 'token-row', 'token-input', 'token-save',
-]) {
-  els[id] = $(id);
-}
+/* Element catalogue. Split by page so it is obvious which screen a missing id
+ * would take down. Everything here must exist in index.html: a null entry used
+ * to abort the whole render, which is exactly how three of these screens were
+ * blanked before. `smoke` in the repo's test notes asserts the two stay in
+ * sync. */
+const ids = {
+  common: ['backdrop', 'offline', 'offline-hint', 'token-row', 'token-input', 'token-save',
+           'page-home', 'page-select', 'page-play', 'page-results'],
+  home: ['home-clock', 'home-dot', 'home-conn-text', 'home-avatar', 'home-name', 'home-sub',
+         'home-pp', 'home-pp-label', 'home-acc', 'home-ranked', 'home-plays', 'home-rank',
+         'home-song', 'home-song-sub', 'home-tags', 'home-ring', 'home-fill',
+         'home-time', 'home-total'],
+  select: ['sel-clock', 'sel-dot', 'sel-conn-text', 'sel-artist', 'sel-title', 'sel-diff',
+           'sel-mapper', 'sel-stars', 'sel-ring', 'sel-objects', 'sel-ar', 'sel-od', 'sel-cs',
+           'sel-hp', 'sel-maxpp', 'sel-pp-fc', 'sel-pp-99', 'sel-pp-98', 'sel-pp-95',
+           'sel-ladder', 'sel-time', 'sel-elapsed', 'sel-fill', 'sel-mods', 'sel-total'],
+  play: ['play-clock', 'play-dot', 'play-conn-text', 'play-map', 'play-diff', 'play-score',
+         'play-hp', 'play-hp-fill', 'play-combo', 'play-acc', 'play-pp', 'play-judges',
+         'play-fill', 'play-time', 'play-total'],
+  results: ['res-clock', 'res-dot', 'res-conn-text', 'res-avatar', 'res-player', 'res-song',
+            'res-diff', 'res-mods', 'res-grade', 'res-score', 'res-stars', 'res-pp', 'res-acc',
+            'res-combo', 'res-judges', 'res-meta'],
+};
 
-/* Every page carries its own status bar, so each needs the clock and the live
- * indicator updated -- not just the home page's. Collected once here rather
- * than repeating the same ids in the lookup table above. */
+const els = {};
+for (const id of Object.values(ids).flat()) els[id] = $(id);
+
+/* Each page owns a status rail, so all four need the clock and live indicator
+ * updated -- not just the home page's. */
 const statusBars = ['home', 'sel', 'play', 'res'].map((prefix) => ({
   time: $(`${prefix}-clock`),
   dot: $(`${prefix}-dot`),
@@ -61,8 +71,22 @@ let lastBackground = '';
 /* ─────────────────────────────────────────────────────────── utilities */
 
 function setText(el, value) {
+  if (!el) return;
   const text = value === null || value === undefined ? '—' : String(value);
   if (el.textContent !== text) el.textContent = text;
+}
+
+function setWidth(el, fraction) {
+  if (!el) return;
+  const pct = Math.max(0, Math.min(100, (Number(fraction) || 0) * 100));
+  el.style.width = `${pct.toFixed(1)}%`;
+}
+
+/** Drive a `.ring`'s conic gradient. `fraction` may exceed 1 for star rings. */
+function setRing(el, fraction) {
+  if (!el) return;
+  const clamped = Math.max(0, Math.min(1, Number(fraction) || 0));
+  el.style.setProperty('--p', clamped.toFixed(3));
 }
 
 function fmtClock(ms) {
@@ -79,8 +103,9 @@ function fmtCount(value) {
 }
 
 function fmtPp(value) {
-  if (!Number.isFinite(value) || value <= 0) return '—';
-  return nf2.format(value);
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  return nf2.format(n);
 }
 
 function escapeHtml(value) {
@@ -91,7 +116,7 @@ function escapeHtml(value) {
 
 function modsHtml(mods, emptyLabel = 'NoMod') {
   const list = (mods && mods.array) || [];
-  if (!list.length) return `<span class="mod none">${emptyLabel}</span>`;
+  if (!list.length) return `<span class="mod none">${escapeHtml(emptyLabel)}</span>`;
   return list.map((m) => `<span class="mod">${escapeHtml(m)}</span>`).join('');
 }
 
@@ -102,30 +127,35 @@ function mapTitle(beatmap) {
     : beatmap.filename.replace(/\.osu$/, '');
 }
 
+function tagsHtml(pairs) {
+  return pairs
+    .filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== '—')
+    .map(([label, value]) => `<span class="tag">${escapeHtml(value)} ${escapeHtml(label)}</span>`)
+    .join('');
+}
 
-/** Shrink a numeric element until it fits its box.
+/** Shrink a numeric element until it fits the space its box actually offers.
  *
- * Scores run from six to ten digits, and the grade letter beside them must
- * never be overlapped or have digits clipped off. Measuring the laid-out width
- * is exact, where picking a size per digit count only ever approximates.
+ * Scores run from six to ten digits; measuring the laid-out width is exact,
+ * where picking a size per digit count only ever approximates. Returns the
+ * scale applied, so callers can constrain it (the live score must not end up
+ * smaller than the readouts beneath it).
  */
-function fitScoreToWidth(el) {
+function fitScoreToWidth(el, { min = 18, maxScale = 1 } = {}) {
+  if (!el) return 1;
   el.style.fontSize = '';
   const parent = el.parentElement;
-  if (!parent) return;
-  // clientWidth includes the parent's padding, which is not space the text can
-  // actually use -- comparing against it lets the number overflow a padded
-  // panel (the results card) by exactly that padding.
+  if (!parent) return 1;
   const pc = getComputedStyle(parent);
   const available = parent.clientWidth
-    - parseFloat(pc.paddingLeft || 0) - parseFloat(pc.paddingRight || 0);
-  if (!(available > 0)) return;
-  // scrollWidth reflects the unconstrained text width at the current size.
+    - (parseFloat(pc.paddingLeft) || 0) - (parseFloat(pc.paddingRight) || 0);
+  if (!(available > 0)) return 1;
   const needed = el.scrollWidth;
-  if (needed > available) {
-    const current = parseFloat(getComputedStyle(el).fontSize) || 1;
-    el.style.fontSize = `${Math.max(18, current * (available / needed) * 0.98)}px`;
-  }
+  if (needed <= available) return 1;
+  const current = parseFloat(getComputedStyle(el).fontSize) || 1;
+  const scale = Math.min(maxScale, (available / needed) * 0.98);
+  el.style.fontSize = `${Math.max(min, current * scale)}px`;
+  return scale;
 }
 
 /** Point the backdrop at the map's artwork, re-requesting only when it changes. */
@@ -143,9 +173,8 @@ function setBackdrop(beatmap) {
 /* ─────────────────────────────────────────────────────── page selection */
 
 function pickPage(state) {
-  const st = state.state;
-  const name = (state.player && state.player.name) || '';
   if (!state.connected) return 'home';
+  const st = state.state;
   if (PLAY_STATES.has(st)) return 'play';
   if (RESULTS_STATES.has(st)) return 'results';
   if (SELECT_STATES.has(st)) return 'select';
@@ -164,97 +193,122 @@ function showPage(page) {
 
 /* ───────────────────────────────────────────────────────────── rendering */
 
+/* Judgement rails share their markup; only the class prefix differs. */
+function judgesHtml(hits) {
+  const rows = [
+    ['300', hits.hit300, 'k300'],
+    ['100', hits.hit100, 'k100'],
+    ['50', hits.hit50, 'k50'],
+    ['0', hits.miss, 'kmiss'],
+  ];
+  return rows.map(([label, value, cls]) =>
+    `<div class="judge ${cls}"><b>${nf.format(value || 0)}</b><i>${label}</i></div>`
+  ).join('');
+}
+
 function renderHome(state) {
   const player = state.player || {};
+  const beatmap = state.beatmap || {};
+  const server = state.bancho && state.bancho.enabled ? state.bancho : null;
+  const stats = server && server.stats ? server.stats : null;
+
   setText(els['home-name'], player.name || '未登录');
   setText(els['home-sub'], player.name
-    ? `Lv ${Math.floor(player.level || 0)} · ${nf2.format(player.accuracy || 0)}% · ${nf.format(player.play_count || 0)} 次游玩`
-    : '');
+    ? `Lv ${Math.floor(player.level || 0)} · ${player.bancho_status || 'idle'}`
+    : '等待 osu! 登录');
+
   const avatar = player.id ? `/api/avatar?id=${encodeURIComponent(player.id)}` : '';
   if (avatar && els['home-avatar'].getAttribute('src') !== avatar) {
     els['home-avatar'].setAttribute('src', avatar);
   }
   els['home-avatar'].hidden = !avatar;
 
-  const serverStats = (state.bancho && state.bancho.stats) || null;
-  const totalPp = serverStats ? serverStats.pp : player.pp;
+  // Total pp is the account's headline. Server-side data wins when present,
+  // because that is the number the player is actually ranked by.
+  const totalPp = stats ? stats.pp : player.pp;
   setText(els['home-pp'], Number.isFinite(totalPp) && totalPp > 0 ? nf.format(totalPp) : '—');
+  setText(els['home-pp-label'], stats ? '总表现（服务器）' : '总表现');
 
-  const beatmap = state.beatmap || {};
+  setText(els['home-acc'], player.accuracy ? `${nf2.format(player.accuracy)}%` : '—');
+  setText(els['home-ranked'], player.ranked_score ? fmtCount(player.ranked_score) : '—');
+  setText(els['home-plays'], player.play_count ? nf.format(player.play_count) : '—');
+  const rank = stats && stats.global_rank;
+  setText(els['home-rank'], rank ? `#${nf.format(rank)}` : '—');
+
   setText(els['home-song'], mapTitle(beatmap));
-  setText(els['home-song-sub'], beatmap.difficulty ? `[${beatmap.difficulty}] · ${beatmap.creator || '?'}` : '');
+  setText(els['home-song-sub'], beatmap.difficulty ? `[${beatmap.difficulty}]` : '');
+  els['home-tags'].innerHTML = tagsHtml([
+    ['★', beatmap.object_count ? nf2.format((state.pp && state.pp.current && state.pp.current.stars) || 0) : ''],
+    ['物件', beatmap.object_count ? nf.format(beatmap.object_count) : ''],
+    ['AR', beatmap.ar ? nf2.format(beatmap.ar) : ''],
+    ['OD', beatmap.od ? nf2.format(beatmap.od) : ''],
+  ].filter(([, v]) => v && v !== '0.00'));
 
-  const tags = [];
-  if (beatmap.ar) tags.push(`${nf2.format(beatmap.ar)} AR`);
-  if (beatmap.od) tags.push(`${nf2.format(beatmap.od)} OD`);
-  if (beatmap.object_count) tags.push(`${nf.format(beatmap.object_count)} 物件`);
-  els['home-tags'].innerHTML = tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('');
-
-  // The map is loaded on the home screen too, so show how far into it we are.
-  els['home-fill'].style.width = `${Math.round((state.progress || 0) * 100)}%`;
-
-  const stats = [];
-  if (serverStats) {
-    stats.push(['排名', serverStats.global_rank ? `#${nf.format(serverStats.global_rank)}` : '—']);
-    stats.push(['准确率', `${nf2.format(serverStats.accuracy)}%`]);
-    stats.push(['总分', fmtCount(serverStats.total_score)]);
-  } else {
-    stats.push(['准确率', player.accuracy ? `${nf2.format(player.accuracy)}%` : '—']);
-    stats.push(['总分', player.ranked_score ? fmtCount(player.ranked_score) : '—']);
-    stats.push(['游玩', player.play_count ? nf.format(player.play_count) : '—']);
-  }
-  els['home-stats'].innerHTML = stats.map(([label, value]) =>
-    `<div class="stat"><div class="stat-label">${escapeHtml(label)}</div>` +
-    `<div class="stat-value">${escapeHtml(value)}</div></div>`
-  ).join('');
+  setWidth(els['home-fill'], state.progress);
+  const played = state.play_time || 0;
+  setText(els['home-time'], fmtClock(played));
+  setText(els['home-total'], fmtClock(state.audio_length || 0));
+  const ring = els['home-ring'] && els['home-ring'].querySelector('.ring-value');
+  setText(ring, fmtClock(played));
+  setRing(els['home-ring'], state.progress);
 }
 
 function renderSelect(state) {
   const beatmap = state.beatmap || {};
   const pp = state.pp || {};
   const current = pp.current || {};
+  const accList = pp.acc_list || {};
 
   setText(els['sel-artist'], beatmap.artist || '—');
   setText(els['sel-title'], beatmap.title || (beatmap.filename ? mapTitle(beatmap) : '未选择谱面'));
-  setText(els['sel-diff'], beatmap.difficulty || '—');
-  setText(els['sel-mapper'], beatmap.creator ? `mapped by ${beatmap.creator}` : '');
+  setText(els['sel-diff'], beatmap.difficulty ? `[${beatmap.difficulty}]` : '—');
+  setText(els['sel-mapper'], beatmap.creator || '未知');
 
-  setText(els['sel-stars'], current.stars ? nf2.format(current.stars) : '—');
+  // The ring encodes the star rating against a fixed 10★ ceiling: enough to
+  // read difficulty at a glance without pretending to be a progress value.
+  const stars = Number(current.stars) || 0;
+  setText(els['sel-stars'], stars ? nf2.format(stars) : '—');
+  setRing(els['sel-ring'], stars / 10);
+  els['sel-ring'].title = stars ? `${nf2.format(stars)} 星` : '';
+
+  setText(els['sel-objects'], beatmap.object_count ? nf.format(beatmap.object_count) : '—');
   setText(els['sel-ar'], beatmap.ar ? nf2.format(beatmap.ar) : '—');
   setText(els['sel-od'], beatmap.od ? nf2.format(beatmap.od) : '—');
   setText(els['sel-cs'], beatmap.cs ? nf2.format(beatmap.cs) : '—');
   setText(els['sel-hp'], beatmap.hp ? nf2.format(beatmap.hp) : '—');
 
-  // Theoretical pp is the value for a full-combo, 100% run of this map.
+  // A full-combo, 100% run of this map is the ceiling everything below is
+  // relative to.
   const best = pp.error ? 0 : ((pp.max || {}).pp || current.pp || 0);
   setText(els['sel-maxpp'], best > 0 ? nf2.format(best) : '—');
+  setText(els['sel-pp-fc'], fmtPp((pp.max || {}).pp));
+  setText(els['sel-pp-99'], fmtPp(accList['99']));
+  setText(els['sel-pp-98'], fmtPp(accList['98']));
+  setText(els['sel-pp-95'], fmtPp(accList['95']));
 
-  const accList = pp.acc_list || {};
-  const entries = Object.entries(accList).sort((a, b) => Number(b[0]) - Number(a[0]));
-  els['sel-ppacc'].innerHTML = entries.length
-    ? entries.map(([acc, value]) =>
-        `<div class="acc-cell"><div class="acc-label">${acc}%</div>` +
-        `<div class="acc-value">${nf2.format(value)}</div></div>`
-      ).join('')
-    : '';
+  // The pp ladder is where the picking actually happens, so every accuracy
+  // gets a bar. Fill is normalised against the 100% value: the 90% bar lands
+  // around half height, which reads as the drop-off it is.
+  const entries = Object.entries(accList)
+    .map(([acc, value]) => [Number(acc), Number(value)])
+    .filter(([acc, value]) => Number.isFinite(acc) && Number.isFinite(value))
+    .sort((a, b) => a[0] - b[0]);
+  els['sel-ladder'].innerHTML = entries.map(([acc, value]) => {
+    const weight = best > 0 ? Math.max(0.12, Math.min(1, value / best)) : 0.5;
+    return `<div class="rung" style="--w:${weight.toFixed(3)}">` +
+           `<b>${nf2.format(value)}</b><i>${acc}%</i></div>`;
+  }).join('');
 
   els['sel-mods'].innerHTML = modsHtml(state.mods);
 
-  const position = state.play_time || 0;
-  const duration = state.audio_length || 0;
-  els['sel-fill'].style.width = `${Math.round((state.progress || 0) * 100)}%`;
-  setText(els['sel-time'], fmtClock(position));
-  setText(els['sel-total'], fmtClock(duration));
-
-  const extra = [
-    ['物件', beatmap.object_count ? nf.format(beatmap.object_count) : '—'],
-    ['谱面 ID', beatmap.map_id ? `#${beatmap.map_id}` : '—'],
-    ['难度名', beatmap.difficulty || '—'],
-  ];
-  els['sel-extra'].innerHTML = extra.map(([label, value]) =>
-    `<div class="meta-item"><div class="meta-label">${escapeHtml(label)}</div>` +
-    `<div class="meta-value">${escapeHtml(value)}</div></div>`
-  ).join('');
+  setWidth(els['sel-fill'], state.progress);
+  const played = state.play_time || 0;
+  setText(els['sel-elapsed'], fmtClock(played));
+  // The ring and the bar carry the same value in two forms: a dial for the
+  // glance, a linear track for the precise read beside it.
+  setText(els['sel-time'], fmtClock(played));
+  setRing(els['sel-time'], state.progress);
+  setText(els['sel-total'], fmtClock(state.audio_length || 0));
 }
 
 function renderPlay(state) {
@@ -263,101 +317,92 @@ function renderPlay(state) {
   const pp = state.pp || {};
 
   setText(els['play-map'], mapTitle(beatmap));
-  setText(els['play-diff'], beatmap.difficulty
-    ? `[${beatmap.difficulty}]${beatmap.object_count ? ` · ${nf.format(beatmap.object_count)} 物件` : ''}`
-    : '');
+  // Difficulty only: the object count is already on the judgement rail's own
+  // screen budget, and repeating it under the title crowds the header.
+  setText(els['play-diff'], beatmap.difficulty ? `[${beatmap.difficulty}]` : '');
 
-  const scoreText = nf.format(gameplay.score || 0);
-  setText(els['play-score'], scoreText);
-  fitScoreToWidth(els['play-score']);
+  setText(els['play-score'], nf.format(gameplay.score || 0));
+  // Cap the shrink: the score may not collapse below the readouts under it.
+  fitScoreToWidth(els['play-score'], { min: 26, maxScale: 0.9 });
+
   setText(els['play-combo'], `${nf.format(gameplay.combo || 0)}x`);
-  setText(els['play-grade'], gameplay.grade || '—');
   setText(els['play-acc'], gameplay.accuracy ? `${nf2.format(gameplay.accuracy)}%` : '—');
-  setText(els['play-pp'], (pp.current || {}).pp > 0 ? `${nf2.format(pp.current.pp)} pp` : '');
+  const livePp = (pp.current || {}).pp;
+  setText(els['play-pp'], livePp > 0 ? nf2.format(livePp) : '—');
 
-  els['play-hp-fill'].style.width = `${Math.max(0, Math.min(100, (gameplay.hp || 0) / 2))}%`;
-  els['play-fill'].style.width = `${Math.round((state.progress || 0) * 100)}%`;
+  // HP is 0..2 in osu!; colour it once it is worth worrying about.
+  const hp = Math.max(0, Math.min(2, Number(gameplay.hp) || 0));
+  els['play-hp-fill'].style.height = `${(hp / 2 * 100).toFixed(1)}%`;
+  els['play-hp'].className = 'hp' + (hp <= 0.5 ? ' is-danger' : hp <= 1 ? ' is-warn' : '');
 
-  const hits = gameplay.hits || {};
-  const rows = [
-    ['300', hits.hit300, 'k300'],
-    ['100', hits.hit100, 'k100'],
-    ['50', hits.hit50, 'k50'],
-    ['0', hits.miss, 'kmiss'],
-  ];
-  els['play-judgements'].innerHTML = rows.map(([label, value, cls]) =>
-    `<div class="hit ${cls}"><div class="hit-label">${label}</div>` +
-    `<div class="hit-value">${nf.format(value || 0)}</div></div>`
-  ).join('');
+  els['play-judges'].innerHTML = judgesHtml(gameplay.hits || {});
+
+  setWidth(els['play-fill'], state.progress);
+  const played = state.play_time || 0;
+  setText(els['play-time'], fmtClock(played));
+  setText(els['play-total'], fmtClock(state.audio_length || 0));
 }
 
 function renderResults(state) {
   const score = shownResults;
   if (!score) {
     setText(els['res-song'], '暂无成绩');
-    setText(els['res-diff'], '');
+    setText(els['res-diff'], '打完一张图后这里会显示成绩');
+    setText(els['res-grade'], '—');
+    els['res-grade'].dataset.grade = '';
+    setText(els['res-score'], '—');
+    els['res-judges'].innerHTML = '';
+    els['res-mods'].innerHTML = '';
+    setText(els['res-stars'], '');
+    setText(els['res-meta'], '');
     return;
   }
+
   const beatmap = score.beatmap || {};
   const hits = score.hits || {};
   const player = state.player || {};
 
+  // Grade first: it fixes how wide the verdict block becomes, and the score is
+  // then fitted against whatever room is left.
   setText(els['res-grade'], score.grade || '—');
   els['res-grade'].dataset.grade = score.grade || '';
-  setText(els['res-song'], mapTitle(beatmap));
-  setText(els['res-diff'], beatmap.difficulty
-    ? `Difficulty: ${beatmap.difficulty}${beatmap.creator ? ` · Mapped by ${beatmap.creator}` : ''}`
-    : '');
   setText(els['res-score'], nf.format(score.score || 0));
-  setText(els['res-score-land'], nf.format(score.score || 0));  // landscape card
-  // Grade first: it decides how wide the panel gets, and the score is fitted
-  // against that resulting width.
-  fitGradeRow(els['res-grade']);
-  fitScoreToWidth(els['res-score']);
-  fitScoreToWidth(els['res-score-land']);
+  fitScoreToWidth(els['res-score'], { min: 24 });
+
+  const scorePp = (state.score_pp || {});
+  const ppValue = (scorePp.current || {}).pp || 0;
+  setText(els['res-pp'], ppValue > 0 ? nf2.format(ppValue) : '—');
   setText(els['res-acc'], score.accuracy ? `${nf2.format(score.accuracy)}%` : '—');
   setText(els['res-combo'], score.combo ? `${nf.format(score.combo)}x` : '—');
 
-  // The score's own pp: `score_pp` is recalculated from the captured hits,
-  // because osu! clears the play structures on song end and the live block
-  // would report the map's theoretical maximum instead.
-  const scorePp = (state.score_pp || {});
-  const ppValue = (scorePp.current || {}).pp || 0;
-  setText(els['res-pp'], ppValue > 0 ? `${nf2.format(ppValue)}` : '—');
+  setText(els['res-player'], score.player_name || player.name || '—');
+  setText(els['res-song'], mapTitle(beatmap));
+  setText(els['res-diff'], beatmap.difficulty
+    ? `[${beatmap.difficulty}]${beatmap.creator ? ` · mapped by ${beatmap.creator}` : ''}`
+    : '');
 
-  const playerName = score.player_name || player.name || '';
-  setText(els['res-player'], playerName || '—');
-  const playerId = player.id;
-  const avatar = playerId ? `/api/avatar?id=${encodeURIComponent(playerId)}` : '';
+  const avatar = player.id ? `/api/avatar?id=${encodeURIComponent(player.id)}` : '';
   if (avatar && els['res-avatar'].getAttribute('src') !== avatar) {
     els['res-avatar'].setAttribute('src', avatar);
   }
   els['res-avatar'].hidden = !avatar;
-  setText(els['res-player-pp'], Number.isFinite(player.pp) && player.pp > 0
-    ? `performance ${nf.format(player.pp)}pp`
-    : '');
 
-  const rows = [
-    ['300', hits.hit300, 'k300'],
-    ['100', hits.hit100, 'k100'],
-    ['50', hits.hit50, 'k50'],
-    ['0', hits.miss, 'kmiss'],
-  ];
-  els['res-hits'].innerHTML = rows.map(([label, value, cls]) =>
-    `<div class="judge ${cls}"><div class="judge-label">${label}</div>` +
-    `<div class="judge-value">${nf.format(value || 0)}</div></div>`
-  ).join('');
+  const stars = (scorePp.current || {}).stars;
+  setText(els['res-stars'], stars ? `${nf2.format(stars)}★ 难度` : '');
 
+  els['res-judges'].innerHTML = judgesHtml(hits);
   els['res-mods'].innerHTML = modsHtml(score.mods);
 
   const meta = [];
   if (score.max_combo) meta.push(`最大连击 ${nf.format(score.max_combo)}x`);
-  if (scorePp.current && scorePp.current.stars) meta.push(`${nf2.format(scorePp.current.stars)}★`);
   if (beatmap.object_count) meta.push(`${nf.format(beatmap.object_count)} 物件`);
-  els['res-meta'].innerHTML = meta.map((m) => 
-    `<div class="meta-item"><div class="meta-value">${escapeHtml(m)}</div></div>`
-  ).join('');
+  if (score.captured_at) {
+    meta.push(new Date(score.captured_at * 1000)
+      .toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+  }
+  setText(els['res-meta'], meta.join(' · '));
 }
+
 function render(state) {
   const page = pickPage(state);
   showPage(page);
@@ -394,8 +439,6 @@ function render(state) {
     console.error(`render(${page}) failed`, err);
   }
 
-  // The offline overlay sits above everything, so its text is only worth
-  // overwriting when the client is actually gone.
   if (renderError) {
     setText(els['offline-hint'], `界面渲染出错：${renderError}`);
     els.offline.classList.add('active');
@@ -407,33 +450,6 @@ function render(state) {
     if (bar.dot) bar.dot.className = 'dot' + (connected ? (playing ? ' live' : ' idle') : '');
     setText(bar.text, connected ? '已连接' : '未连接');
   }
-}
-
-/** Shrink the grade so the score panel keeps enough width to stay readable.
- *
- * The grade scales with viewport height, which is what makes it the headline.
- * Two-letter ranks (SH/XH) are far wider than one, and a long score needs real
- * room beside it, so the size is bounded by measurement rather than guessed
- * per rank. Must run BEFORE the score is fitted: the grade is what decides how
- * wide the panel ends up, and the score is fitted against that width.
- */
-function fitGradeRow(gradeEl) {
-  const row = gradeEl.parentElement;
-  if (!row) return;
-  const scoreBox = row.querySelector(".res-score-box");
-  gradeEl.style.fontSize = '';
-  const rowWidth = row.clientWidth;
-  if (!rowWidth) return;
-  const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
-  // The score card needs real room for a full nine-digit number. The rank
-  // letter is what gives up the space, since it scales with the viewport.
-  const reserve = scoreBox ? Math.max(140, rowWidth * 0.42) : 0;
-  const maxGradeWidth = rowWidth - gap - reserve;
-  const needed = gradeEl.scrollWidth;
-  if (needed <= maxGradeWidth) return;
-  const current = parseFloat(getComputedStyle(gradeEl).fontSize) || 1;
-  gradeEl.style.fontSize =
-    `${Math.max(48, current * (maxGradeWidth / needed) * 0.98)}px`;
 }
 
 /* ─────────────────────────────────────────────────────────────── feed */
@@ -480,4 +496,67 @@ function showTokenPrompt() {
   };
 }
 
-connect();
+/* ───────────────────────────────────────────────────────────── demo mode */
+
+/* `?demo=home|select|play|results` paints that screen from a fixed sample
+ * payload instead of connecting, so a layout can be checked on a real phone
+ * without having to reach the matching game state. It listens to nothing and
+ * writes nothing; leaving it out of the URL changes no other behaviour. */
+const DEMO_PLAYER = {
+  name: 'Yuzu', id: 1, level: 86.27, accuracy: 98.1, play_count: 5124,
+  ranked_score: 812_345_678, pp: 4597, play_mode: 0, bancho_status: 'idle',
+};
+const DEMO_BEATMAP = {
+  artist: 'yuikonnu', title: 'Kakushigoto', difficulty: 'Insane',
+  creator: 'jonathanlfj', ar: 9, cs: 4, hp: 7, od: 8, object_count: 995,
+  map_id: 315260, folder: '', background: '',
+};
+const DEMO_PP = {
+  error: null,
+  current: { pp: 251.4, stars: 5.755 },
+  max: { pp: 264.723 },
+  acc_list: { '100': 264.723, '99': 233.625, '98': 210.69, '97': 194.115, '95': 172.178, '90': 138.949 },
+};
+
+function demoState(name) {
+  const base = {
+    connected: true, error: null, player: DEMO_PLAYER, beatmap: DEMO_BEATMAP,
+    mods: { array: ['HD', 'HR'], bits: 0, rate: 1 },
+    bancho: { enabled: true, ok: true, name: 'Yuzu', stats: { pp: 4597, global_rank: 128, accuracy: 98.1, total_score: 1_204_000_000 } },
+    pp: DEMO_PP, progress: 0.42, play_time: 101_000, audio_length: 240_744,
+    gameplay: null,
+  };
+  if (name === 'select') return { ...base, state: 'selectPlay' };
+  if (name === 'play') {
+    return {
+      ...base, state: 'play', progress: 0.61, play_time: 147_000,
+      mods: { array: ['HD', 'DT'], bits: 0, rate: 1.5 },
+      gameplay: {
+        score: 48_271_930, combo: 812, max_combo: 1104, accuracy: 98.42, grade: 'S', hp: 1.32,
+        hits: { hit300: 712, hit100: 21, hit50: 0, geki: 140, katu: 12, miss: 2 },
+      },
+      pp: { ...DEMO_PP, current: { pp: 268.9, stars: 5.755 } },
+    };
+  }
+  if (name === 'results') {
+    return {
+      ...base, state: 'resultScreen', progress: 1,
+      last_score: {
+        player_name: 'Yuzu', mode: 0, score: 46_517_430, combo: 1539, max_combo: 1539,
+        accuracy: 98.86, grade: 'S', captured_at: Math.floor(Date.now() / 1000),
+        hits: { hit300: 978, hit100: 17, hit50: 0, geki: 177, katu: 15, miss: 0 },
+        mods: { array: [], bits: 0, rate: 1 }, beatmap: DEMO_BEATMAP,
+      },
+      score_pp: { current: { pp: 230.033, stars: 5.755 } },
+    };
+  }
+  return { ...base, state: 'menu' };
+}
+
+const demo = new URLSearchParams(location.search).get('demo');
+if (demo && ['home', 'select', 'play', 'results'].includes(demo)) {
+  render(demoState(demo));
+} else {
+  connect();
+}
+
