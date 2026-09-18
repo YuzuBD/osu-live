@@ -21,6 +21,13 @@ from .winmem import MemoryError_
 #: select changes maps on every keypress while scrolling.
 _SELECT_DEBOUNCE_MS = 400
 
+#: Consecutive unreadable frames tolerated before the reader is rebuilt. osu!
+#: frees its gameplay and profile objects the instant a map ends, so reads fail
+#: for a few frames around that transition; 8 frames is roughly 400ms at the
+#: default poll interval, comfortably past the gap but short enough that a
+#: genuinely closed client is noticed within about half a second.
+_READ_FAILURES_BEFORE_REATTACH = 8
+
 
 def _hits_from(snapshot: Snapshot) -> HitCounts | None:
     gameplay = snapshot.gameplay
@@ -56,6 +63,13 @@ class StateManager:
             config.bancho_api_url, config.bancho_player, config.bancho_interval_s
         )
         self._generation = 0  # bumped when a new state is published
+        #: Newest fully-read state, re-published while the client is
+        #: mid-transition so a map change never blanks the overlay.
+        self._last_good: dict[str, Any] | None = None
+        self._failures = 0
+        #: Which map the cached pp belongs to, and when it was computed.
+        self._pp_key_of_last: tuple[str, str, int] | None = None
+        self._pp_computed_at = 0.0
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -94,8 +108,6 @@ class StateManager:
     # -- polling -------------------------------------------------------------
 
     def _run(self) -> None:
-        pp_key: tuple[str, str, int] | None = None
-        pp_computed_at = 0.0
         while not self._stop.is_set():
             started = time.perf_counter()
             try:
@@ -103,66 +115,114 @@ class StateManager:
                     self._reader = OsuReader()
                 snapshot = self._reader.snapshot()
                 if not snapshot.ok:
-                    # The process is alive but a read failed; reconnect and retry.
-                    self._reader.close()
-                    self._reader = None
-                    raise MemoryError_(snapshot.error or "read failed")
+                    # A read failed. On its own that means very little: osu!
+                    # frees the gameplay and profile objects the instant a map
+                    # ends, so the transition into the results screen always
+                    # produces a few bad frames. Republishing the last complete
+                    # state carries the overlay through that gap; only a run of
+                    # failures is treated as the client being gone.
+                    self._on_read_failure(snapshot.error or "read failed")
+                    elapsed = time.perf_counter() - started
+                    self._stop.wait(max(0.0, self.config.poll_interval_ms / 1000 - elapsed))
+                    continue
 
-                key = self._pp_key(snapshot)
-                now = time.perf_counter()
-                if key != pp_key:
-                    # A different map is selected: never show the old map's pp
-                    # under the new title, even for one frame.
-                    self._last_pp = None
-                    pp_key = key
-                if self._should_compute_pp(snapshot, now, pp_computed_at):
-                    self._last_pp = self._compute_pp(snapshot)
-                    pp_computed_at = time.perf_counter()
-
-                # pp for the finished play, recalculated when a new score lands.
-                score = snapshot.last_score
-                score_key = None
-                if score:
-                    beatmap = score.get("beatmap")
-                    score_key = (
-                        getattr(beatmap, "folder", "") or "",
-                        getattr(beatmap, "filename", "") or "",
-                        float(score.get("captured_at") or 0.0),
-                    )
-                if score_key != self._score_pp_key:
-                    self._score_pp_key = score_key
-                    self._score_pp = (
-                        self._compute_score_pp(score) if score else None
-                    )
-
-                payload = self._build(snapshot)
-                payload["pp"] = self._last_pp
-                payload["score_pp"] = self._score_pp
-                self._publish(payload)
+                self._failures = 0
+                self._publish(self._advance(snapshot))
             except MemoryError_ as exc:
-                # The handle outlives the process it points at, so ``is_alive``
-                # keeps succeeding against a dead osu!. Dropping the reader
-                # forces a fresh attach -- and a fresh process lookup, which is
-                # what notices the game was restarted.
-                if self._reader is not None:
-                    self._reader.close()
-                    self._reader = None
-                self._publish(
-                    {
-                        "connected": False,
-                        "error": str(exc),
-                        "waiting_for": "osu!.exe",
-                        "pp": self._last_pp,
-                    }
-                )
+                # No reader, or one that cannot even be attached: osu! is not
+                # running. Tear it down so the next tick does a fresh process
+                # lookup, which is what notices the game being restarted.
+                self._on_read_failure(str(exc))
                 self._stop.wait(1.0)
                 continue
             except Exception as exc:  # never let the poller die
+                self._reader = None
                 self._publish({"connected": False, "error": f"{type(exc).__name__}: {exc}"})
                 self._stop.wait(0.5)
                 continue
             elapsed = time.perf_counter() - started
             self._stop.wait(max(0.0, self.config.poll_interval_ms / 1000 - elapsed))
+
+    def _on_read_failure(self, error: str) -> None:
+        """Keep serving through a read gap, or declare the client gone.
+
+        Holding the state rather than flapping to "disconnected" is what stops
+        a map ending from flashing the overlay; rebuilding the reader is
+        deliberately last because a reattach re-scans the whole address space
+        for every signature, far too expensive to pay for a single unreadable
+        frame. The held state is rebuilt rather than replayed so its clock and
+        progress keep moving -- a frozen picture reads as a frozen overlay.
+        """
+        self._failures += 1
+        transient = (
+            self._failures < _READ_FAILURES_BEFORE_REATTACH
+            and self._reader is not None
+            and self._last_good is not None
+        )
+        if transient:
+            payload = self._degenerate(self._last_good, error)
+        else:
+            if self._reader is not None:
+                self._reader.close()
+                self._reader = None
+            payload = {
+                "connected": False,
+                "error": error,
+                "waiting_for": "osu!.exe",
+                "pp": self._last_pp,
+                "score_pp": self._score_pp,
+            }
+        self._publish(payload)
+
+    def _degenerate(self, last: dict[str, Any], error: str) -> dict[str, Any]:
+        """Carry the last good read forward while the client is unreadable.
+
+        Live-only values are dropped rather than shown stale: a judgement count
+        or HP bar that stops updating mid-play is worse than one that empties,
+        because nothing on screen says it has stopped being true. The map,
+        account and pp are kept -- those are what the next screen needs.
+        """
+        payload = dict(last)
+        payload["timestamp"] = time.time()
+        payload["error"] = error
+        payload["stale"] = True
+        payload["gameplay"] = None
+        payload["key_overlay"] = []
+        payload["hit_errors"] = []
+        return payload
+
+    def _advance(self, snapshot: Snapshot) -> dict[str, Any]:
+        """Refresh pp for a successfully read frame and build its payload."""
+        if self._reader is not None:
+            key = self._pp_key(snapshot)
+            now = time.perf_counter()
+            if key != self._pp_key_of_last:
+                # A different map is selected: never show the old map's pp
+                # under the new title, even for one frame.
+                self._last_pp = None
+                self._pp_key_of_last = key
+            if self._should_compute_pp(snapshot, now, self._pp_computed_at):
+                self._last_pp = self._compute_pp(snapshot)
+                self._pp_computed_at = time.perf_counter()
+
+        # pp for the finished play, recalculated when a new score lands.
+        score = snapshot.last_score
+        score_key = None
+        if score:
+            beatmap = score.get("beatmap")
+            score_key = (
+                getattr(beatmap, "folder", "") or "",
+                getattr(beatmap, "filename", "") or "",
+                float(score.get("captured_at") or 0.0),
+            )
+        if score_key != self._score_pp_key:
+            self._score_pp_key = score_key
+            self._score_pp = self._compute_score_pp(score) if score else None
+
+        payload = self._build(snapshot)
+        payload["pp"] = self._last_pp
+        payload["score_pp"] = self._score_pp
+        return payload
 
     @staticmethod
     def _pp_key(snapshot: Snapshot) -> tuple[str, str, int]:
@@ -304,6 +364,8 @@ class StateManager:
         with self._lock:
             self._state = payload
             self._generation += 1
+            if payload.get("connected"):
+                self._last_good = payload
 
 
 def _last_score_json(score: dict[str, Any] | None) -> dict[str, Any] | None:

@@ -63,10 +63,18 @@ const SELECT_STATES = new Set([
   'onlineSelection', 'beatmapImport',
 ]);
 
+/* How long a dropped connection is tolerated before the "waiting for osu!"
+ * overlay is shown. osu! frees its play structures the instant a map ends, so
+ * the play → results hand-off can cost a state or two; anything shorter than
+ * this never reaches the screen. */
+const OFFLINE_GRACE_MS = 1200;
+
 let lastPlayScore = null;   // newest finished score seen after a play
 let shownResults = null;    // the score currently on the results screen
 let lastPage = '';
 let lastBackground = '';
+let offlineTimer = null;    // defers the "no client" overlay, see render()
+let offlineReason = '';     // most recent error, shown if the overlay does open
 
 /* ─────────────────────────────────────────────────────────── utilities */
 
@@ -421,10 +429,23 @@ function render(state) {
 
   const connected = !!state.connected;
   const playing = page === 'play';
-  const offline = !connected;
-  els.offline.classList.toggle('active', offline);
-  if (offline) {
-    setText(els['offline-hint'], state.error ? `错误：${state.error}` : '正在等待 osu! 客户端…');
+
+  /* osu! frees its play structures the moment a map ends, so a state can
+   * briefly stop arriving right at the play → results hand-off. Showing the
+   * "waiting for osu!" overlay for that flash is worse than showing the last
+   * screen a moment longer, so the overlay waits out a short grace period and
+   * anything shorter than that is never seen at all. */
+  offlineReason = state.error || offlineReason;
+  if (connected) {
+    if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null; }
+    els.offline.classList.remove('active');
+  } else if (!offlineTimer && !els.offline.classList.contains('active')) {
+    offlineTimer = setTimeout(() => {
+      offlineTimer = null;
+      setText(els['offline-hint'],
+        offlineReason ? `错误：${offlineReason}` : '正在等待 osu! 客户端…');
+      els.offline.classList.add('active');
+    }, OFFLINE_GRACE_MS);
   }
 
   // One broken panel must not take the rest of the page down with it.
@@ -439,7 +460,10 @@ function render(state) {
     console.error(`render(${page}) failed`, err);
   }
 
+  // A render fault is a real fault, not a transient gap: surface it at once
+  // rather than after the offline grace period.
   if (renderError) {
+    if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null; }
     setText(els['offline-hint'], `界面渲染出错：${renderError}`);
     els.offline.classList.add('active');
   }

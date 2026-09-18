@@ -324,13 +324,23 @@ class OsuReader:
     def snapshot(self) -> Snapshot:
         """Read the complete state in one pass.
 
-        Never raises for a transient read failure; the returned snapshot carries
-        ``ok=False`` and an ``error`` so callers can serve the last good state.
+        Smooths over the moment a play ends. osu! frees the gameplay, score and
+        profile objects on the frame it switches to the results screen, so a
+        pointer that resolved a millisecond ago can still be dereferenced just
+        after it was freed -- a wild read that lands on a low address and comes
+        back ``ERROR_PARTIAL_COPY``. Those gaps last a few milliseconds, so the
+        read is retried inside this frame before it is called a failure; only a
+        state that stays unreadable is handed up as ``ok=False``.
         """
-        try:
-            return self._snapshot()
-        except MemoryError_ as exc:
-            return Snapshot(ok=False, error=str(exc), pid=self.pid)
+        last: MemoryError_ | None = None
+        for attempt in range(3):
+            try:
+                return self._snapshot()
+            except MemoryError_ as exc:
+                last = exc
+                if attempt < 2:
+                    time.sleep(0.004)
+        return Snapshot(ok=False, error=str(last), pid=self.pid)
 
     def _snapshot(self) -> Snapshot:
         process = self.process
@@ -360,7 +370,11 @@ class OsuReader:
 
         gameplay_base = self._gameplay_base(ruleset)
         if gameplay_base:
-            snap.gameplay = self._read_gameplay(gameplay_base, ruleset, snap.mods)
+            # Safe to attempt: a gameplay object that is mid-teardown yields no
+            # block rather than an exception, same as a freed profile does.
+            snap.gameplay = self._optional(
+                lambda: self._read_gameplay(gameplay_base, ruleset, snap.mods), None
+            )
         mode = (snap.gameplay or {}).get("mode", 0)
 
         snap.key_overlay = self._read_key_overlay(ruleset, mode, snap.state_id)
@@ -439,6 +453,15 @@ class OsuReader:
         profile = self.user_profile()
         if not profile:
             return {}
+        # The profile object is among the things osu! frees between screens, so
+        # a partially valid pointer is expected rather than exceptional. An
+        # unreadable player block costs the account panel, not the whole frame.
+        try:
+            return self._read_player_fields(process, profile)
+        except MemoryError_:
+            return {}
+
+    def _read_player_fields(self, process: Process, profile: int) -> dict[str, Any]:
         name = process.read_csharp_string(process.read_u32(profile + _PROFILE_PLAYER_NAME))
         pp_offset, country_offset = self._profile_layout()
         return {
@@ -819,6 +842,15 @@ def _accuracy(mode: int, hits: HitCounts) -> float:
 
 
 def _read_beatmap(process: Process, pattern_base: int) -> BeatmapInfo:
+    """Beatmap metadata, or an empty record when the map is being swapped.
+
+    ``read_ptr_ptr`` can resolve to a freed -- and therefore zeroed -- object
+    while osu! tears the play down, and every field below is an offset off that
+    pointer. Left unguarded the first one, ``+0x68``, becomes a read of the
+    literal address 0x68, which is the ``ReadProcessMemory(0x68, 4) failed:
+    299`` seen when a map ends. A null base means "no map right now", not a
+    broken process, so it returns empty rather than failing the whole read.
+    """
     beatmap = process.read_ptr_ptr(pattern_base - 0xC)
     if not beatmap:
         return BeatmapInfo()
