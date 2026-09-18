@@ -6,15 +6,17 @@ immutable state, so a slow client can never stall the poller.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from .bancho_api import BanchoClient, BanchoSnapshot
 from .config import Config
 from .pp_engine import PpEngine
-from .reader import HitCounts, OsuReader, Snapshot
+from .reader import HitCounts, OsuReader, Snapshot, set_failure_sink
 from .winmem import MemoryError_
 
 #: How long the selected map must hold still before pp is calculated. Song
@@ -27,6 +29,30 @@ _SELECT_DEBOUNCE_MS = 400
 #: default poll interval, comfortably past the gap but short enough that a
 #: genuinely closed client is noticed within about half a second.
 _READ_FAILURES_BEFORE_REATTACH = 8
+
+#: Where read failures are recorded. A failure that lasts a few frames is
+#: invisible by the time anyone looks at the overlay, so it is written down as
+#: it happens rather than reconstructed afterwards.
+LOG_PATH = Path(__file__).resolve().parent.parent / ".osu_live.log"
+
+log = logging.getLogger("osu_live")
+log.setLevel(logging.INFO)
+log.propagate = False
+if not log.handlers:
+    try:
+        _handler = logging.FileHandler(LOG_PATH, encoding="utf-8")
+        _handler.setFormatter(
+            logging.Formatter("%(asctime)s.%(msecs)03d %(message)s", "%H:%M:%S")
+        )
+        log.addHandler(_handler)
+    except OSError:
+        # A read-only install must still run; it just loses the log.
+        log.addHandler(logging.NullHandler())
+
+# A field that fails while the rest of the frame reads cleanly never surfaces
+# to the caller as an error, so the reader hands it here directly. Registered
+# at import so it is in place before any reader exists.
+set_failure_sink(lambda message: log.info("degraded  %s", message))
 
 
 def _hits_from(snapshot: Snapshot) -> HitCounts | None:
@@ -70,6 +96,7 @@ class StateManager:
         #: Which map the cached pp belongs to, and when it was computed.
         self._pp_key_of_last: tuple[str, str, int] | None = None
         self._pp_computed_at = 0.0
+        log.info("state manager created (songs=%s)", config.songs_folder or "-")
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -126,6 +153,8 @@ class StateManager:
                     self._stop.wait(max(0.0, self.config.poll_interval_ms / 1000 - elapsed))
                     continue
 
+                if self._failures:
+                    log.info("recovered after %d unreadable frame(s)", self._failures)
                 self._failures = 0
                 self._publish(self._advance(snapshot))
             except MemoryError_ as exc:
@@ -160,8 +189,12 @@ class StateManager:
             and self._last_good is not None
         )
         if transient:
+            log.info("held      frame %d/%d unreadable: %s",
+                     self._failures, _READ_FAILURES_BEFORE_REATTACH, error)
             payload = self._degenerate(self._last_good, error)
         else:
+            log.warning("reattach  after %d unreadable frame(s), last error: %s",
+                        self._failures, error)
             if self._reader is not None:
                 self._reader.close()
                 self._reader = None

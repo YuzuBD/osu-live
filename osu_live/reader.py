@@ -16,10 +16,30 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from . import signatures
 from .winmem import MemoryError_, Process, list_processes
+
+#: Where a partial read failure is reported. A field that fails while the rest
+#: of the frame succeeds never reaches the caller as an error -- it comes back
+#: empty, which is right for the overlay but useless for diagnosing a
+#: transition. Anything registered here hears about it as it happens.
+_failure_sink: Callable[[str], None] | None = None
+
+
+def set_failure_sink(sink: Callable[[str], None] | None) -> None:
+    """Register a callback for read failures that would otherwise be silent."""
+    global _failure_sink
+    _failure_sink = sink
+
+
+def _note_failure(message: str) -> None:
+    if _failure_sink is not None:
+        try:
+            _failure_sink(message)
+        except Exception:
+            pass  # diagnostics must never break the read path
 
 #: Where the most recent completed play is kept, so the results screen survives
 #: an osu! restart or this program restarting.
@@ -169,6 +189,9 @@ class OsuReader:
         self._gameplay_old: bool | None = None
         self._beatmap_cache: tuple[str, BeatmapInfo] | None = None
         self._last_score: dict[str, Any] | None = self._load_last_score()
+        #: Fields currently reported as degraded, so each failure is logged
+        #: once per run rather than once per frame.
+        self._noted: dict[str, bool] = {}
         self.attach(pid)
 
     # -- lifecycle -----------------------------------------------------------
@@ -452,19 +475,38 @@ class OsuReader:
         process = self.process
         profile = self.user_profile()
         if not profile:
+            # Zero here means the profile object is gone or not yet built. The
+            # overlay falls back to "not logged in", which is what the account
+            # panel flashing blank during a screen change looks like.
+            self._note_once("player", "user_profile resolved to 0")
             return {}
         # The profile object is among the things osu! frees between screens, so
         # a partially valid pointer is expected rather than exceptional. An
         # unreadable player block costs the account panel, not the whole frame.
         try:
             return self._read_player_fields(process, profile)
-        except MemoryError_:
+        except MemoryError_ as exc:
+            self._note_once("player", str(exc))
             return {}
+
+    def _note_once(self, key: str, message: str) -> None:
+        """Report a degraded field once per run of failures.
+
+        Clearing the flag when the field reads cleanly again keeps the log
+        proportional to how often something goes wrong, not to the frame rate.
+        """
+        if self._noted.get(key):
+            return
+        self._noted[key] = True
+        _note_failure(f"{key}: {message}")
+
+    def _cleared(self, key: str) -> None:
+        self._noted.pop(key, None)
 
     def _read_player_fields(self, process: Process, profile: int) -> dict[str, Any]:
         name = process.read_csharp_string(process.read_u32(profile + _PROFILE_PLAYER_NAME))
         pp_offset, country_offset = self._profile_layout()
-        return {
+        data = {
             "name": name,
             "accuracy": round(process.read_f64(profile + _PROFILE_ACCURACY), 3),
             "ranked_score": process.read_i64(profile + _PROFILE_RANKED_SCORE),
@@ -481,14 +523,21 @@ class OsuReader:
                 process.read_u8(process.read_u32(self.pattern("raw_login_status")))
             ),
         }
+        self._cleared("player")
+        return data
 
     def _cached_beatmap(self, base: int) -> BeatmapInfo:
         """Beatmap metadata, re-read only when the selected map changes."""
         if self._beatmap_cache is not None:
             checksum = self._beatmap_cache[0]
             if checksum and self._checksum_unchanged(base, checksum):
+                self._cleared("beatmap")
                 return self._beatmap_cache[1]
         info = _read_beatmap(self.process, base)
+        if info.filename or info.title:
+            self._cleared("beatmap")
+        else:
+            self._note_once("beatmap", "beatmap resolved to an empty record")
         self._beatmap_cache = (info.checksum, info)
         return info
 

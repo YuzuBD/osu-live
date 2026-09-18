@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .env
 .last_score.json
+
+.osu_live.log

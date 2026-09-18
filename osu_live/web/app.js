@@ -75,6 +75,22 @@ let lastPage = '';
 let lastBackground = '';
 let offlineTimer = null;    // defers the "no client" overlay, see render()
 let offlineReason = '';     // most recent error, shown if the overlay does open
+/* Last non-empty player block and beatmap. osu! frees the profile and beatmap
+ * objects on the frame it changes screens, so a read can come back empty while
+ * the map is still loaded. Rendering that emptiness puts "未登录" and a blank
+ * title on screen for a frame or two, so an empty block inherits the previous
+ * one and only an explicit disconnect clears them. */
+let lastPlayer = {};
+let lastBeatmap = {};
+
+/** Keep the previous block when this frame's is empty.
+ *
+ * Only whole empty containers are substituted: a count that arrives as 0 is a
+ * real value (no misses yet) and must never inherit the last frame's.
+ */
+function keepFilled(previous, incoming) {
+  return (incoming && Object.keys(incoming).length) ? incoming : (previous || {});
+}
 
 /* ─────────────────────────────────────────────────────────── utilities */
 
@@ -412,9 +428,20 @@ function renderResults(state) {
 }
 
 function render(state) {
-  const page = pickPage(state);
+  const connected = !!state.connected;
+
+  // Resolve the blocks that flicker before anything reads them.
+  const player = keepFilled(lastPlayer, state.player);
+  if (state.player && Object.keys(state.player).length) lastPlayer = state.player;
+  const beatmap = keepFilled(lastBeatmap, state.beatmap);
+  if (beatmap && Object.keys(beatmap).length) lastBeatmap = beatmap;
+  // An explicit disconnect means the client is gone, not mid-transition: drop
+  // the carried-over data so the overlay is not backed by stale values.
+  if (!connected) { lastPlayer = {}; lastBeatmap = {}; }
+
+  const page = pickPage({ ...state, player, beatmap });
   showPage(page);
-  setBackdrop(state.beatmap);
+  setBackdrop(beatmap);
 
   // Remember the newest finished score. `last_score` is only populated once a
   // play has happened, and never cleared, so it survives the song-select
@@ -427,7 +454,6 @@ function render(state) {
   }
   if (page === 'results') shownResults = lastPlayScore;
 
-  const connected = !!state.connected;
   const playing = page === 'play';
 
   /* osu! frees its play structures the moment a map ends, so a state can
@@ -448,13 +474,16 @@ function render(state) {
     }, OFFLINE_GRACE_MS);
   }
 
-  // One broken panel must not take the rest of the page down with it.
+  // One broken panel must not take the rest of the page down with it. The
+  // painters get the merged blocks, so what they draw matches what chose the
+  // page even when this frame arrived with an empty profile or beatmap.
+  const view = { ...state, player, beatmap };
   let renderError = null;
   try {
-    if (page === 'home') renderHome(state);
-    else if (page === 'select') renderSelect(state);
-    else if (page === 'play') renderPlay(state);
-    else renderResults(state);
+    if (page === 'home') renderHome(view);
+    else if (page === 'select') renderSelect(view);
+    else if (page === 'play') renderPlay(view);
+    else renderResults(view);
   } catch (err) {
     renderError = `${err.name}: ${err.message}`;
     console.error(`render(${page}) failed`, err);
