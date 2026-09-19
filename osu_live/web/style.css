@@ -477,16 +477,6 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 
 .stars { display: flex; align-items: center; gap: var(--s4); min-width: 0; }
 
-/* Registered so the arc can interpolate; unregistered it is a string and the
- * transition is simply dropped. Safari before 16.4 has no @property -- it
- * ignores the at-rule, the arc still draws, it just arrives without
- * travelling, so this is an enhancement rather than a requirement. */
-@property --p {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 0;
-}
-
 .stars-ring {
   position: relative;
   flex-shrink: 0;
@@ -501,14 +491,18 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
   letter-spacing: -.03em;
   text-shadow: var(--tsh);
   /* The ring shows the rating against a 10★ ceiling, so its fill is the
-   * difficulty at a glance and the number is the precise value. */
+   * difficulty at a glance and the number is the precise value.
+   *
+   * The turn value is written by the script rather than computed here as
+   * `calc(var(--p) * 1turn)` on a registered property: animating a custom
+   * property inside a gradient repaints every frame, and iOS Safari does not
+   * survive several of those at once. */
   background:
     radial-gradient(circle, rgba(11, 10, 13, .94) 62%, transparent 63%),
     conic-gradient(from -90deg,
-      var(--accent) calc(var(--p, 0) * 1turn),
+      var(--accent) var(--arc, 0turn),
       rgba(255, 255, 255, .09) 0);
   box-shadow: 0 0 26px rgba(255, 95, 162, .16);
-  transition: --p .5s ease;
 }
 
 .stars-ring > span { font-size: var(--fs-lg); line-height: 1; }
@@ -579,26 +573,17 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
   overflow: hidden;
 }
 
-/* Registered so the ladder's fill can be animated: an unregistered custom
- * property is a string, and strings do not interpolate. */
-@property --w {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 0;
-}
-
+/* The rung's fill is written by the script as a plain gradient, because
+ * `rgba()` with a `calc()` over a custom property repaints this element every
+ * time the value moves. */
 .rung {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   gap: 2px;
   padding: var(--s2) 2px var(--s1);
-  background:
-    linear-gradient(180deg,
-      rgba(255, 95, 162, calc(var(--w, 0) * .13)) 0%,
-      rgba(11, 10, 13, .55) 100%);
+  background: linear-gradient(180deg, rgba(255, 95, 162, .02) 0%, rgba(11, 10, 13, .55) 100%);
   text-align: center;
-  transition: --w .45s ease;
 }
 
 .rung b {

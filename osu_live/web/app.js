@@ -224,12 +224,32 @@ function numberFromElement(el) {
   return Number.isFinite(value) ? value : 0;
 }
 
-/** Drive a registered custom property; the transition in the stylesheet does
- * the interpolating, so a single assignment is enough. */
-function tweenTo(el, property, to) {
+/** Draw the star ring's arc.
+ *
+ * The fraction is written straight into the gradient as a turn value rather
+ * than left to `calc(var(--p) * 1turn)` on a registered property. Animating a
+ * registered custom property inside a gradient repaints the element every
+ * frame -- custom properties do not animate on the compositor -- and this
+ * screen runs several at once while the artwork is cross-fading. The arc
+ * lands on the same value either way; it just no longer travels to it.
+ */
+function setArc(el, fraction) {
   if (!el) return;
-  const clamped = Math.max(0, Math.min(1, Number(to) || 0));
-  el.style.setProperty(property, clamped.toFixed(3));
+  const turns = Math.max(0, Math.min(1, Number(fraction) || 0));
+  el.style.setProperty('--arc', `${turns.toFixed(4)}turn`);
+}
+
+/** Draw one ladder rung's fill.
+ *
+ * The alpha is resolved here and written as a plain colour: `rgba()` with a
+ * `calc()` over a custom property inside a gradient is the same per-frame
+ * repaint as above.
+ */
+function setRungFill(el, weight) {
+  if (!el) return;
+  const w = Math.max(0, Math.min(1, Number(weight) || 0));
+  el.style.background =
+    `linear-gradient(180deg, rgba(255, 95, 162, ${(w * 0.13).toFixed(4)}) 0%, rgba(11, 10, 13, .55) 100%)`;
 }
 
 function setText(el, value) {
@@ -554,7 +574,7 @@ function ladderInto(container, entries, best) {
     const rung = container.querySelector(`.rung[data-acc="${acc}"]`);
     if (!rung) continue;
     const weight = best > 0 ? Math.max(0.12, Math.min(1, value / best)) : 0.5;
-    rung.style.setProperty('--w', weight.toFixed(3));
+    setRungFill(rung, weight);
     setText(rung.querySelector('b'), nf2.format(value));
   }
 }
@@ -605,7 +625,7 @@ function renderSelect(state) {
   // driven by a registered property so it can animate.
   const stars = Number(current.stars) || 0;
   tweenNumber('sel.stars', stars, els['sel-stars'], (v) => nf2.format(v));
-  tweenTo(els['sel-ring'], '--p', stars / 10);
+  setArc(els['sel-ring'], stars / 10);
   if (els['sel-ring']) els['sel-ring'].title = stars ? `${nf2.format(stars)} 星` : '';
 
   // A full-combo, 100% run of this map is the ceiling everything is relative to.
