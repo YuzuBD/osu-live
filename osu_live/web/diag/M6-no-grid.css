@@ -1,0 +1,5 @@
+@import url("../style.css");
+
+.page.active { display: flex !important; flex-direction: column !important; }
+.body { display: flex !important; flex-direction: column !important; }
+.head, .who, .foot { position: static !important; }

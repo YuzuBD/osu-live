@@ -1,0 +1,7 @@
+@import url("../style.css");
+
+.page.active { grid-template-rows: 1fr 18px !important; }
+.body-home { grid-template-rows: 80px auto auto !important; }
+.body-select { grid-template-rows: 85px auto !important; }
+.body-play { grid-template-rows: 74px auto auto !important; }
+.body-results { padding-top: 86px !important; }

@@ -1,0 +1,3 @@
+@import url("../style.css");
+
+.page.active { grid-template-rows: auto auto !important; }

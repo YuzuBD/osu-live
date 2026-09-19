@@ -1,0 +1,193 @@
+@import url("../style.css");
+
+/* landscape rules, media query removed */
+
+  :root {
+    --fs-micro: clamp(8px, 1.7vh, 9.5px);
+    --fs-label: clamp(9px, 2.05vh, 11.5px);
+    --fs-xs: clamp(10px, 2.3vh, 13px);
+    --fs-sm: clamp(11.5px, 2.7vh, 15px);
+    --fs-md: clamp(13.5px, 3.3vh, 18px);
+    --fs-lg: clamp(16px, 3.9vh, 22px);
+    --fs-head: clamp(21px, 5.9vh, 34px);
+    --fs-lead: clamp(25px, 7.4vh, 42px);
+    --fs-figure: clamp(46px, 14.4vh, 78px);
+    --fs-score: clamp(50px, 15.4vh, 88px);
+    /* Height the out-of-flow header band occupies, so a body can reserve it. */
+    --head-band: calc(var(--fs-lead) * 1.08 + var(--fs-micro) * 1.4 + var(--s3));
+  }
+
+  body[data-page="play"] .backdrop { filter: blur(30px) brightness(.22) saturate(1.1); }
+
+  /* Two rows: the body takes all the slack, the footer gets a row of its own.
+   *
+   * The footer's row must be explicit. It is the page's last child and the
+   * body spans the full grid, so without a reserved row the body simply
+   * extends into the footer's band and a bottom-anchored block inside it ends
+   * up underneath the progress bar. */
+  .page { display: none; gap: var(--s2); }
+  .page.active {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    row-gap: var(--s2);
+  }
+  .page > .body { grid-row: 1; grid-column: 1 / -1; min-height: 0; margin: 0; }
+  .page > .foot { grid-row: 2; grid-column: 1 / -1; }
+
+  /* ── the header band ──────────────────────────────────────────────────
+   * Taken out of flow and pinned under the status rail, so it claims exactly
+   * one line of height whether it sits directly under .page or nested inside
+   * the body wrapper. A descendant selector cannot span both shapes, and
+   * was silently failing on this page. */
+  .head {
+    position: absolute;
+    top: var(--pad-t);
+    left: max(var(--pad-x), var(--sa-left));
+    right: max(var(--pad-x), var(--sa-right));
+    padding-bottom: var(--s1);
+  }
+
+  .page > .body { grid-row: 1 / -1; grid-column: 1 / -1; min-height: 0; margin: 0; }
+  .page > .foot { grid-row: 3; grid-column: 1 / -1; }
+
+  .who { padding-right: 0; }
+
+  /* ── home: song top-left, the account centred, progress at the foot ──
+   * The account is the subject of this screen, so it is centred in the space
+   * the header and footer leave rather than pushed to one side. */
+  .body-home {
+    display: grid;
+    grid-template-rows: var(--head-band-height, var(--head-band)) auto auto;
+    /* Rows size to their content and the group is centred in what the header
+     * and footer leave, rather than one row absorbing the slack and centring
+     * its contents inside the resulting gap. */
+    align-content: center;
+    gap: var(--s3);
+  }
+  .body-home > .account {
+    grid-row: 2;
+    gap: var(--s1);
+    min-height: 0;
+  }
+  /* The identity block is the tallest thing on this screen and the header band
+   * and footer are both fixed costs, so the avatar and the figure are sized
+   * down here rather than allowed to push the rail into the footer. */
+  .body-home .who { flex-direction: column; gap: var(--s1); }
+  .body-home .who-avatar { width: clamp(36px, 9.6vh, 48px); height: clamp(36px, 9.6vh, 48px); }
+  .body-home .who-name { font-size: var(--fs-lg); }
+  .body-home .figure-value { font-size: clamp(40px, 12.4vh, 62px); }
+  .body-home > .rail-stats { grid-row: 3; }
+  /* The star rating and map attributes belong to the select screen, where the
+   * map is actually being judged. On home they only made the header band tall
+   * enough to squeeze the account block against the footer, and that band is
+   * reserved space which has to come out of the layout somewhere. */
+  .body-home > .head .chips-row { display: none; }
+
+  /* ── select: figures left, difficulty and map attributes right ───────
+   * The columns are rows of one grid whose first row is the reserved header
+   * band, so centring happens inside what is left rather than over the
+   * header. Giving the columns `justify-content: center` instead would
+   * recentre them across the padding and ride up under the title. */
+  .body-select {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: var(--head-band-height, var(--head-band)) auto;
+    align-content: center;
+    column-gap: var(--s6);
+    min-height: 0;
+  }
+  .sel-left {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    align-content: center;
+    gap: var(--s3);
+    min-height: 0;
+  }
+  .sel-right {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    align-content: center;
+    gap: var(--s3);
+    min-height: 0;
+  }
+
+  /* ── play: title, the score owning the middle, live feedback on the
+   * bottom rail. Combo and accuracy split the width; pp is held smaller
+   * because it is context, and the health track sits as a column on that
+   * same rail so it shares the baseline instead of floating beside the
+   * score with nothing to align to. */
+  /* ── play: score through the middle, the readouts on one rail at the
+   * bottom, health tracking beside them.
+   *
+   * The rows size to their content and the group is anchored to the bottom of
+   * the body, so the slack collects between the header band and the score.
+   * That keeps the readouts where they are read from -- low on the screen --
+   * with the rail sitting just clear of the progress bar. Letting the slack
+   * pool below the rail (align-content: start) instead floated the whole
+   * composition up under the title. */
+  .body-play {
+    display: grid;
+    grid-template-rows: var(--head-band-height, var(--head-band)) auto auto;
+    align-content: end;
+    row-gap: var(--s3);
+    /* clearance between the rail's labels and the progress bar */
+    padding-bottom: var(--s3);
+    min-height: 0;
+  }
+  .body-play > .live { grid-column: 1 / -1; grid-row: 2; min-height: 0; }
+  .body-play > .live-stats { grid-column: 1 / -1; grid-row: 3; }
+  .body-play > .judges { display: none; }
+
+  /* Equal thirds for combo and accuracy, then the quieter pp readout and the
+   * health track. */
+  .body-play .live-stats {
+    grid-template-columns: 1fr 1fr auto auto;
+    align-items: end;
+    column-gap: var(--s5);
+    min-height: 0;
+  }
+  .body-play .live-stat b { font-size: var(--fs-figure); }
+  .body-play .live-stat.is-pp b { font-size: var(--fs-head); }
+  .body-play .hp {
+    width: clamp(9px, 2.6vh, 13px);
+    height: clamp(30px, 8.6vh, 46px);
+    min-height: 0;
+    align-self: end;
+    margin-bottom: 3px;
+  }
+
+  /* ── results: grade half the width by two thirds of the height, set as
+   * type with no plate behind it; score and the remaining figures stack to
+   * its right. Song identity keeps the same top-left slot as every other
+   * screen. */
+  .body-results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    column-gap: var(--s6);
+    min-height: 0;
+    padding-top: var(--head-band-height, var(--head-band));
+  }
+  .body-results > .verdict-grade {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    justify-self: center;
+    font-size: clamp(104px, 40vh, 210px);
+  }
+  .body-results > .verdict-side { grid-column: 2; grid-row: 1; }
+  .body-results > .frame {
+    grid-template-columns: repeat(3, 1fr);
+    row-gap: 0;
+    padding: var(--s2) var(--s3);
+  }
+  .body-results > .frame .stat { padding: 0 0 0 var(--s3); border-top: 0; border-left: 1px solid var(--hair); }
+  .body-results > .frame .stat:first-child { padding-left: 0; border-left: 0; }
+  .body-results > .frame .stat b { font-size: var(--fs-md); }
+  .body-results > .frame .stat i { margin-top: 2px; }
+  .body-results > .judges { display: none; }
+  .page-results .verdict-value { font-size: clamp(38px, 12vh, 62px); margin: var(--s1) 0; }

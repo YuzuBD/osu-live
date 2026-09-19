@@ -1,0 +1,4 @@
+@import url("../style.css");
+
+.body-home, .body-select { align-content: normal !important; }
+.body-play { align-content: normal !important; }

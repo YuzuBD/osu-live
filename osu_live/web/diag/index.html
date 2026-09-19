@@ -3,78 +3,54 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>横屏诊断 · osu! live</title>
+<title>第二轮 · grid 二分</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; padding: 14px; background: #0b0a0d; color: #f5f4f7;
          font: 15px/1.55 -apple-system, system-ui, sans-serif; }
   h1 { font-size: 18px; margin: 0 0 2px; }
-  p.lead { color: rgba(245,244,247,.6); font-size: 13px; margin: 0 0 14px; }
+  p.lead { color: rgba(245,244,247,.62); font-size: 13px; margin: 0 0 12px; }
+  .done { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;
+          background: rgba(110,226,135,.10); border: 1px solid rgba(110,226,135,.35); }
+  .done b { color: #7ee08a; }
   ol { padding: 0; margin: 0; list-style: none; }
   li { margin-bottom: 9px; }
   a { display: block; padding: 10px 13px; background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
       color: #ff92c4; text-decoration: none; font-weight: 700; }
   a:active { background: rgba(255,255,255,.14); }
-  small { display: block; color: rgba(245,244,247,.5); font-weight: 400; margin-top: 2px; }
+  small { display: block; color: rgba(245,244,247,.52); font-weight: 400; margin-top: 2px; }
   .tip { margin-top: 15px; padding: 11px 13px; background: rgba(255,95,162,.10);
          border: 1px solid rgba(255,95,162,.3); border-radius: 8px; font-size: 13px; }
   table { border-collapse: collapse; font-size: 13px; margin-top: 6px; width: 100%; }
   td { padding: 3px 0; vertical-align: top; }
   td:first-child { color: rgba(245,244,247,.6); white-space: nowrap; padding-right: 10px; }
   code { font-size: 12px; color: #ffc74d; }
-  .big { font-size: 14px; }
 </style>
 </head>
 <body>
-<h1>横屏崩溃诊断</h1>
-<p class="lead">
-  <b class="big">请先在竖屏打开本页，然后旋转到横屏</b>，再逐个点开。<br>
-  每个变体都是真实页面，只删掉一样东西——而且是从第一个字节就生效，不是事后注入。
-</p>
+<h1>第二轮 · grid 二分</h1>
+
+<div class="done">
+  <b>已确定：</b>问题在横屏媒体查询里的 <b>grid 布局</b>。删掉整个横屏查询正常；
+  横屏 grid 退回 flex 也正常。<br>
+  这一轮把 grid 的用法拆成五条，每条一个变体。
+</div>
+
+<p class="lead"><b>请在横屏下直接打开本页</b>（不要先竖屏再转），然后逐个点。</p>
 
 <ol>
-  <li><a href="N0-control.html">N0 对照组<small>未修改。横屏应该崩，用来确认环境没变。</small></a></li>
-  <li><a href="N1-no-media.html">N1 删掉横屏媒体查询<small>把 <code>@media (orientation: landscape)</code> 整块从样式表里删除。</small></a></li>
-  <li><a href="N2-no-filter.html">N2 禁用 filter / backdrop-filter<small>模糊是合成层的大头。</small></a></li>
-  <li><a href="N3-no-gradient.html">N3 禁用渐变<small>含 conic-gradient 和 linear-gradient。</small></a></li>
-  <li><a href="N4-no-composite.html">N4 禁用背景层的 transform + filter<small>背景图层上的 scale + blur 组合。</small></a></li>
-  <li><a href="N5-no-dvh.html">N5 禁用 100dvh<small>改成 100%，排除动态视口单位。</small></a></li>
-  <li><a href="N6-no-grid.html">N6 禁用横屏 grid 布局<small>退回 flex，排除网格布局。</small></a></li>
+  <li><a href="M6-no-grid.html">M6 退回 flex<small>对照——预期正常，用来确认环境没变。</small></a></li>
+  <li><a href="M1-unconditional.html">M1 横屏规则无条件生效<small>规则照旧，只是不再包在媒体查询里。崩 → 是查询求值；不崩 → 是规则内容。</small></a></li>
+  <li><a href="M2-no-var-tracks.html">M2 grid 轨道不用 var()<small>把 <code>var(--head-band-height, …)</code> 换成固定像素。</small></a></li>
+  <li><a href="M3-no-minmax.html">M3 不用 minmax()<small>把 <code>minmax(0, 1fr)</code> 换成 <code>auto</code>。</small></a></li>
+  <li><a href="M4-no-align.html">M4 不改 align-content<small>去掉横屏里的 <code>align-content</code> 覆盖。</small></a></li>
+  <li><a href="M5-band-padding.html">M5 标题带改用 padding<small>不再用 grid 行预留标题高度。</small></a></li>
 </ol>
 
 <div class="tip">
-  <b>只需要回两件事：</b>
-  <table>
-    <tr><td>N0 崩了吗</td><td>崩 / 没崩</td></tr>
-    <tr><td>N1–N6</td><td>哪几个能开、哪几个崩（一句话列出来就行）</td></tr>
-  </table>
-  <br>
-  页面顶部有一条粉色横幅标着变体编号，方便确认打开的是哪一个。
+  <b>只需回一句话：</b>哪几个正常、哪几个崩。例如「M6 M2 M5 正常，其余崩」。<br>
+  顶部粉色横幅标着编号，方便确认打开的是哪个。
 </div>
-
-<div class="tip" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.15)">
-  <b>本机环境</b>
-  <table>
-    <tr><td>dvh</td><td><code id="p1">…</code></td></tr>
-    <tr><td>conic-gradient</td><td><code id="p2">…</code></td></tr>
-    <tr><td>backdrop-filter</td><td><code id="p3">…</code></td></tr>
-    <tr><td>safe-area env</td><td><code id="p4">…</code></td></tr>
-    <tr><td>@property</td><td><code id="p5">…</code></td></tr>
-  </table>
-  <div style="margin-top:8px;font-size:11px;color:rgba(245,244,247,.45)" id="ua"></div>
-</div>
-
-<script>
-const set = (id, ok) => { document.getElementById(id).textContent = ok ? '支持' : '不支持'; };
-set('p1', CSS.supports('height', '100dvh'));
-set('p2', CSS.supports('background', 'conic-gradient(red, blue)'));
-set('p3', CSS.supports('backdrop-filter', 'blur(2px)') || CSS.supports('-webkit-backdrop-filter', 'blur(2px)'));
-set('p4', CSS.supports('padding-top', 'env(safe-area-inset-top)'));
-let prop = false;
-try { CSS.registerProperty({ name: '--p', syntax: '<number>', inherits: false, initialValue: '0' }); prop = true; } catch (e) {}
-set('p5', prop);
-document.getElementById('ua').textContent = navigator.userAgent;
-</script>
 </body>
 </html>

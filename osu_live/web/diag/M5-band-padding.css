@@ -1,0 +1,12 @@
+@import url("../style.css");
+
+.page.active { grid-template-rows: auto auto !important; }
+.body-home, .body-select {
+  grid-template-rows: auto auto !important;
+  padding-top: var(--head-band-height, 85px) !important;
+}
+.body-play {
+  grid-template-rows: auto auto !important;
+  padding-top: var(--head-band-height, 74px) !important;
+}
+.body-results { padding-top: var(--head-band-height, 86px) !important; }
