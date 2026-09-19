@@ -750,27 +750,20 @@ function renderPlay(state) {
 
 function renderResults(state) {
   const score = shownResults;
-  /* The stored score belongs on this screen only if it is the map osu! has
-   * loaded. It is written out while a map is being played, so anything left
-   * from an earlier map -- or from a play that happened while this program was
-   * not running -- would otherwise be shown as the result of whatever is on
-   * screen now. A wrong result reads as a broken overlay; saying there is none
-   * is both true and actionable.
+  /* The stored play is not always this map's: it is written while a map is
+   * being played, so one can be left over from an earlier map, or from a play
+   * that happened while this program was not running.
    *
-   * `score.beatmap` is the map that was played and `state.beatmap` is the map
-   * loaded now; on a results screen the two are the same map. */
+   * It is still shown -- it is the newest result there is, and hiding it left
+   * the screen with nothing at all -- but when it is not the map currently
+   * loaded it says so. The line under the title carries the map's own name, so
+   * that is where the qualification belongs. */
   const current = state.beatmap || {};
   const stale = !!score && !sameBeatmap(score.beatmap, current);
 
-  if (!score || stale) {
+  if (!score) {
     setText(els['res-song'], '暂无成绩');
-    /* States the fact and what it takes to record one. Not "the program was
-     * not running": that is the usual reason but not the only one, and a
-     * message that guesses at a cause is worse than one that explains the
-     * rule. */
-    setText(els['res-diff'], stale
-      ? '这一局没有被记录到 · 游戏进行时程序需要开着'
-      : '打完一张图后这里会显示成绩');
+    setText(els['res-diff'], '打完一张图后这里会显示成绩');
     setText(els['res-grade'], '—');
     els['res-grade'].dataset.grade = '';
     setText(els['res-score'], '—');
@@ -800,9 +793,11 @@ function renderResults(state) {
 
   setText(els['res-player'], score.player_name || player.name || '—');
   setText(els['res-song'], mapTitle(beatmap));
-  setText(els['res-diff'], beatmap.difficulty
+  const difficulty = beatmap.difficulty
     ? `[${beatmap.difficulty}]${beatmap.creator ? ` · mapped by ${beatmap.creator}` : ''}`
-    : '');
+    : '';
+  setText(els['res-diff'],
+    stale ? [difficulty, '上一局的成绩'].filter(Boolean).join(' · ') : difficulty);
 
   const avatar = player.id ? `/api/avatar?id=${encodeURIComponent(player.id)}` : '';
   if (avatar && els['res-avatar'].getAttribute('src') !== avatar) {
