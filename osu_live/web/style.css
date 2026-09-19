@@ -989,23 +989,54 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
    * because it is context, and the health track sits as a column on that
    * same rail so it shares the baseline instead of floating beside the
    * score with nothing to align to. */
+  /* ── play: the score owns the middle row and the live feedback sits beside
+   * it, so one flexible row holds the whole composition and cannot grow into
+   * the footer. Stacking score-above-stats instead made the two blocks fight
+   * for the same height and the stats ended up under the progress bar. */
   .body-play {
     display: grid;
-    grid-template-rows: 1fr auto;
-    row-gap: var(--s4);
+    grid-template-rows: var(--head-band-height, var(--head-band)) 1fr;
+    row-gap: var(--s2);
     min-height: 0;
-    padding-top: var(--head-band-height, var(--head-band));
   }
-  .body-play > .live { grid-column: 1 / -1; grid-row: 1; align-self: center; }
-  .body-play > .live-stats { grid-column: 1 / -1; grid-row: 2; align-self: end; }
+  .body-play > .live-main {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: var(--s5);
+    min-height: 0;
+  }
+  .body-play .live-score { font-size: clamp(40px, 12.6vh, 68px); }
   .body-play > .judges { display: none; }
-  .body-play .live-stats { grid-template-columns: 1fr 1fr auto auto; column-gap: var(--s5); }
+
+  /* The readouts stack so each keeps the full figure size without the group
+   * growing taller than the score beside it. */
+  .body-play .live-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--s2);
+    grid-template-columns: none;
+  }
+  .body-play .live-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding-left: 0;
+    border-left: 0;
+    text-align: right;
+  }
+  .body-play .live-stat b { font-size: clamp(22px, 6.6vh, 36px); line-height: 1; }
+  .body-play .live-stat i { margin-top: 1px; }
+  .body-play .live-stat.is-pp b { font-size: var(--fs-md); }
   .body-play .hp {
     width: clamp(8px, 2.4vh, 12px);
+    height: clamp(24px, 7vh, 40px);
     min-height: 0;
-    height: clamp(28px, 8vh, 48px);
-    align-self: center;
-    margin-top: var(--s1);
+    order: -1;
+    margin-bottom: var(--s1);
   }
 
   /* ── results: grade half the width by two thirds of the height, set as
