@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0a0812">
+<meta name="theme-color" content="#0b0a0d">
 <meta name="color-scheme" content="dark">
 <title>osu! live</title>
 <link rel="stylesheet" href="style.css">
@@ -12,152 +12,154 @@
 
 <div class="backdrop" id="backdrop"></div>
 <div class="scrim"></div>
+<div class="grain"></div>
 
 <main id="shell">
 
   <!-- ── HOME ─────────────────────────────────────────────────────────────
-       Idle screen. The account is the subject; the selected map is context. -->
-  <section class="page page-home shape-wide" id="page-home">
+       The account is the subject, the selected map is context. One figure
+       carries the screen (total pp); everything else is set as type on the
+       artwork rather than boxed. -->
+  <section class="page page-home" id="page-home">
 
     <div class="rail-right">
       <span class="clock" id="home-clock">--:--</span>
       <span class="conn"><i class="dot" id="home-dot"></i><span id="home-conn-text">连接中</span></span>
     </div>
 
-    <div class="body">
-      <header class="hd">
-        <img class="hd-avatar" id="home-avatar" alt="" hidden>
-        <div class="hd-text">
-          <h1 class="hd-title" id="home-name">—</h1>
-          <div class="hd-sub" id="home-sub"></div>
+    <div class="body body-home">
+      <header class="who">
+        <img class="who-avatar" id="home-avatar" alt="" hidden>
+        <div class="who-text">
+          <h1 class="who-name" id="home-name">—</h1>
+          <div class="who-sub" id="home-sub"></div>
         </div>
       </header>
 
-      <div class="gauge is-accent">
-        <div class="gauge-label" id="home-pp-label">总表现</div>
-        <div class="gauge-value" id="home-pp">—</div>
-        <div class="gauge-foot">
-          <span class="tick"><b id="home-acc">—</b><i>准确率</i></span>
-          <span class="tick"><b id="home-ranked">—</b><i>总分</i></span>
-          <span class="tick"><b id="home-plays">—</b><i>游玩</i></span>
-          <span class="tick"><b id="home-rank">—</b><i>排名</i></span>
+      <div class="figures">
+        <div class="figure">
+          <div class="figure-label" id="home-pp-label">总表现</div>
+          <div class="figure-value" id="home-pp">—</div>
+        </div>
+
+        <div class="rail-stats">
+          <div class="stat"><b id="home-acc">—</b><i>准确率</i></div>
+          <div class="stat"><b id="home-ranked">—</b><i>总分</i></div>
+          <div class="stat"><b id="home-plays">—</b><i>游玩</i></div>
+          <div class="stat"><b id="home-rank">—</b><i>排名</i></div>
         </div>
       </div>
 
-      <header class="hd is-compact">
-        <div class="hd-text">
-          <div class="hd-eyebrow">当前选图</div>
-          <h2 class="hd-title" id="home-song">—</h2>
-          <div class="hd-sub" id="home-song-sub"></div>
-        </div>
-      </header>
-
-      <div class="chips-row" id="home-tags"></div>
+      <div class="now">
+        <div class="eyebrow">当前选图</div>
+        <h2 class="now-title" id="home-song">—</h2>
+        <div class="now-sub" id="home-song-sub"></div>
+        <div class="chips-row" id="home-tags"></div>
+      </div>
     </div>
 
     <footer class="foot">
-      <div class="ring" id="home-ring"><span class="ring-value">0:00</span></div>
       <div class="foot-body">
         <div class="track"><div class="track-fill" id="home-fill"></div></div>
-        <div class="foot-meta"><span id="home-time">0:00</span><span id="home-total">0:00</span></div>
+        <div class="foot-meta">
+          <span id="home-time">0:00</span>
+          <span id="home-total">0:00</span>
+        </div>
       </div>
     </footer>
 
   </section>
 
   <!-- ── SELECT ───────────────────────────────────────────────────────────
-       Browsing for pp. Song, difficulty and the pp ladder are the point;
-       raw map IDs and object counts are not. -->
-  <section class="page page-select shape-wide" id="page-select">
+       Browsing for pp. The title, the star rating and the theoretical pp are
+       the three things being read; the pp ladder is what the choice is made
+       from. Nothing on this page is boxed except the single hairline ladder. -->
+  <section class="page page-select" id="page-select">
 
     <div class="rail-right">
       <span class="clock" id="sel-clock">--:--</span>
       <span class="conn"><i class="dot" id="sel-dot"></i><span id="sel-conn-text">连接中</span></span>
     </div>
 
-    <div class="body">
-      <header class="hd is-compact">
-        <div class="hd-text">
-          <div class="hd-eyebrow" id="sel-artist"></div>
-          <h1 class="hd-title" id="sel-title">—</h1>
-          <div class="hd-sub"><span id="sel-diff"></span></div>
+    <div class="body body-select">
+      <div class="sel-left">
+        <div class="figure">
+          <div class="figure-label">理论 PP</div>
+          <div class="figure-value" id="sel-maxpp">—</div>
+          <div class="rail-stats is-tight">
+            <div class="stat"><b id="sel-pp-fc">—</b><i>FC</i></div>
+            <div class="stat"><b id="sel-pp-99">—</b><i>99%</i></div>
+            <div class="stat"><b id="sel-pp-98">—</b><i>98%</i></div>
+            <div class="stat"><b id="sel-pp-95">—</b><i>95%</i></div>
+          </div>
         </div>
-      </header>
-
-      <div class="duo">
-        <div class="ring" id="sel-ring"><span class="ring-value" id="sel-stars">—</span></div>
-        <div class="duo-body">
-          <div class="eyebrow">物件</div>
-          <div class="big" id="sel-objects">—</div>
-          <div class="eyebrow">mapped by <span id="sel-mapper"></span></div>
-        </div>
+        <div class="ladder" id="sel-ladder"></div>
       </div>
 
-      <div class="attrs" id="sel-attrs">
-        <div class="attr"><b id="sel-ar">—</b><i>AR</i></div>
-        <div class="attr"><b id="sel-od">—</b><i>OD</i></div>
-        <div class="attr"><b id="sel-cs">—</b><i>CS</i></div>
-        <div class="attr"><b id="sel-hp">—</b><i>HP</i></div>
-      </div>
+      <div class="sel-right">
+        <header class="head">
+          <div class="head-eyebrow" id="sel-artist"></div>
+          <h1 class="head-title is-lead" id="sel-title">—</h1>
+          <div class="head-sub" id="sel-diff"></div>
+        </header>
 
-      <div class="gauge is-accent">
-        <div class="gauge-label">理论 PP</div>
-        <div class="gauge-value" id="sel-maxpp">—</div>
-        <div class="gauge-foot">
-          <span class="tick"><b id="sel-pp-fc">—</b><i>FC</i></span>
-          <span class="tick"><b id="sel-pp-99">—</b><i>99%</i></span>
-          <span class="tick"><b id="sel-pp-98">—</b><i>98%</i></span>
-          <span class="tick"><b id="sel-pp-95">—</b><i>95%</i></span>
+        <div class="stars">
+          <div class="stars-ring" id="sel-ring"><span id="sel-stars">—</span></div>
+          <div class="stars-body">
+            <div class="eyebrow">物件</div>
+            <div class="stars-count" id="sel-objects">—</div>
+            <div class="eyebrow">mapped by <span id="sel-mapper"></span></div>
+          </div>
         </div>
-      </div>
 
-      <div class="ladder" id="sel-ladder"></div>
+        <div class="attrs" id="sel-attrs">
+          <div class="attr"><b id="sel-ar">—</b><i>AR</i></div>
+          <div class="attr"><b id="sel-od">—</b><i>OD</i></div>
+          <div class="attr"><b id="sel-cs">—</b><i>CS</i></div>
+          <div class="attr"><b id="sel-hp">—</b><i>HP</i></div>
+        </div>
+
+        <div class="chips" id="sel-mods"></div>
+      </div>
     </div>
 
     <footer class="foot">
-      <div class="ring" id="sel-time">0:00</div>
       <div class="foot-body">
-        <div class="chips" id="sel-mods"></div>
         <div class="track"><div class="track-fill" id="sel-fill"></div></div>
-        <div class="foot-meta"><span>试听 <span id="sel-elapsed">0:00</span></span><span id="sel-total">0:00</span></div>
+        <div class="foot-meta">
+          <span id="sel-elapsed">0:00</span>
+          <span id="sel-total">0:00</span>
+        </div>
       </div>
     </footer>
 
   </section>
 
   <!-- ── PLAY ─────────────────────────────────────────────────────────────
-       Eyes are on the game. Score is the anchor, accuracy and combo are the
-       live feedback, everything else is a glanceable rail. -->
-  <section class="page page-play shape-wide" id="page-play">
+       The score is the anchor and takes the largest type on the screen. Combo
+       and accuracy are the live feedback; pp is context and stays quiet. -->
+  <section class="page page-play" id="page-play">
 
     <div class="rail-right">
       <span class="clock" id="play-clock">--:--</span>
       <span class="conn"><i class="dot" id="play-dot"></i><span id="play-conn-text">连接中</span></span>
     </div>
 
-    <div class="body">
-      <header class="hd is-compact">
-        <div class="hd-text">
-          <h1 class="hd-title" id="play-map">—</h1>
-          <div class="hd-sub" id="play-diff"></div>
-        </div>
+    <div class="body body-play">
+      <header class="head">
+        <h1 class="head-title is-lead" id="play-map">—</h1>
+        <div class="head-sub" id="play-diff"></div>
       </header>
 
-      <div class="score-strip">
-        <div class="score-num" id="play-score">0</div>
-        <div class="hp" id="play-hp" title="HP"><div class="hp-fill" id="play-hp-fill"></div></div>
+      <div class="live">
+        <div class="live-score" id="play-score">0</div>
       </div>
 
-      <div class="readout">
-        <div class="ro is-combo">
-          <b id="play-combo">0x</b><i>连击</i>
-        </div>
-        <div class="ro is-acc">
-          <b id="play-acc">—</b><i>准确率</i>
-        </div>
-        <div class="ro is-pp">
-          <b id="play-pp">—</b><i>实时 PP</i>
-        </div>
+      <div class="live-stats">
+        <div class="live-stat is-combo"><b id="play-combo">0x</b><i>连击</i></div>
+        <div class="live-stat is-acc"><b id="play-acc">—</b><i>准确率</i></div>
+        <div class="live-stat is-pp"><b id="play-pp">—</b><i>实时 PP</i></div>
+        <div class="hp" id="play-hp" title="HP"><div class="hp-fill" id="play-hp-fill"></div></div>
       </div>
 
       <div class="judges" id="play-judges"></div>
@@ -167,47 +169,42 @@
       <div class="track"><div class="track-fill" id="play-fill"></div></div>
       <div class="foot-meta"><span id="play-time">0:00</span><span id="play-total">0:00</span></div>
     </footer>
+
   </section>
 
   <!-- ── RESULTS ──────────────────────────────────────────────────────────
-       One finished play. The grade and the score are the headline; the pp it
-       was worth and the judgement split are the supporting facts. -->
-  <section class="page page-results shape-wide" id="page-results">
+       The verdict: a grade panel holding the lower two thirds of the left
+       half, the score to its right, and one framed block for the remaining
+       figures instead of a box per number. -->
+  <section class="page page-results" id="page-results">
 
     <div class="rail-right">
       <span class="clock" id="res-clock">--:--</span>
       <span class="conn"><i class="dot" id="res-dot"></i><span id="res-conn-text">连接中</span></span>
     </div>
 
-    <div class="body">
-      <header class="hd is-compact">
-        <img class="hd-avatar" id="res-avatar" alt="" hidden>
-        <div class="hd-text">
-          <div class="hd-eyebrow"><span id="res-player"></span><span class="chips" id="res-mods"></span></div>
-          <h1 class="hd-title" id="res-song">—</h1>
-          <div class="hd-sub" id="res-diff"></div>
+    <div class="body body-results">
+      <header class="head is-full">
+        <img class="who-avatar" id="res-avatar" alt="" hidden>
+        <div class="head-text">
+          <div class="head-eyebrow"><span id="res-player"></span><span class="chips" id="res-mods"></span></div>
+          <h1 class="head-title" id="res-song">—</h1>
+          <div class="head-sub" id="res-diff"></div>
         </div>
       </header>
 
-      <div class="verdict">
-        <div class="verdict-grade" id="res-grade">—</div>
-        <div class="verdict-body">
-          <div class="eyebrow">得分</div>
-          <div class="verdict-score" id="res-score">0</div>
-          <div class="eyebrow" id="res-stars"></div>
-        </div>
+      <div class="verdict-grade" id="res-grade">—</div>
+
+      <div class="verdict-score">
+        <div class="eyebrow">得分</div>
+        <div class="verdict-value" id="res-score">0</div>
+        <div class="eyebrow" id="res-stars"></div>
       </div>
 
-      <div class="readout">
-        <div class="ro is-pp">
-          <b id="res-pp">—</b><i>表现</i>
-        </div>
-        <div class="ro is-acc">
-          <b id="res-acc">—</b><i>准确率</i>
-        </div>
-        <div class="ro is-combo">
-          <b id="res-combo">—</b><i>连击</i>
-        </div>
+      <div class="frame">
+        <div class="stat"><b id="res-pp">—</b><i>表现</i></div>
+        <div class="stat"><b id="res-acc">—</b><i>准确率</i></div>
+        <div class="stat"><b id="res-combo">—</b><i>连击</i></div>
       </div>
 
       <div class="judges" id="res-judges"></div>

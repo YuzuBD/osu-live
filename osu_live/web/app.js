@@ -25,12 +25,12 @@ const ids = {
            'page-home', 'page-select', 'page-play', 'page-results'],
   home: ['home-clock', 'home-dot', 'home-conn-text', 'home-avatar', 'home-name', 'home-sub',
          'home-pp', 'home-pp-label', 'home-acc', 'home-ranked', 'home-plays', 'home-rank',
-         'home-song', 'home-song-sub', 'home-tags', 'home-ring', 'home-fill',
+         'home-song', 'home-song-sub', 'home-tags', 'home-fill',
          'home-time', 'home-total'],
   select: ['sel-clock', 'sel-dot', 'sel-conn-text', 'sel-artist', 'sel-title', 'sel-diff',
            'sel-mapper', 'sel-stars', 'sel-ring', 'sel-objects', 'sel-ar', 'sel-od', 'sel-cs',
            'sel-hp', 'sel-maxpp', 'sel-pp-fc', 'sel-pp-99', 'sel-pp-98', 'sel-pp-95',
-           'sel-ladder', 'sel-time', 'sel-elapsed', 'sel-fill', 'sel-mods', 'sel-total'],
+           'sel-ladder', 'sel-elapsed', 'sel-fill', 'sel-mods', 'sel-total'],
   play: ['play-clock', 'play-dot', 'play-conn-text', 'play-map', 'play-diff', 'play-score',
          'play-hp', 'play-hp-fill', 'play-combo', 'play-acc', 'play-pp', 'play-judges',
          'play-fill', 'play-time', 'play-total'],
@@ -272,9 +272,6 @@ function renderHome(state) {
   const played = state.play_time || 0;
   setText(els['home-time'], fmtClock(played));
   setText(els['home-total'], fmtClock(state.audio_length || 0));
-  const ring = els['home-ring'] && els['home-ring'].querySelector('.ring-value');
-  setText(ring, fmtClock(played));
-  setRing(els['home-ring'], state.progress);
 }
 
 function renderSelect(state) {
@@ -326,12 +323,7 @@ function renderSelect(state) {
   els['sel-mods'].innerHTML = modsHtml(state.mods);
 
   setWidth(els['sel-fill'], state.progress);
-  const played = state.play_time || 0;
-  setText(els['sel-elapsed'], fmtClock(played));
-  // The ring and the bar carry the same value in two forms: a dial for the
-  // glance, a linear track for the precise read beside it.
-  setText(els['sel-time'], fmtClock(played));
-  setRing(els['sel-time'], state.progress);
+  setText(els['sel-elapsed'], fmtClock(state.play_time || 0));
   setText(els['sel-total'], fmtClock(state.audio_length || 0));
 }
 

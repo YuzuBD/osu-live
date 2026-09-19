@@ -1,66 +1,89 @@
 /* osu! live — phone overlay
  *
- * Layout rules this file follows:
+ * Design system
+ * ─────────────
+ * The substrate is neutral near-black with a cool cast. An earlier version put
+ * every panel on a violet-tinted surface (#16111f, hue 261) under a pink glow,
+ * which read as a purple haze and made the whole overlay look like a default
+ * template. The surface is now essentially hue-less so the one saturated colour
+ * on screen — osu!'s pink — is the accent rather than the ambience.
  *
- *  1. Nothing is a plain stack. Each state is built from a small set of
- *     structures (rail / header / duo / readout / ladder / verdict) that place
- *     emphasis horizontally, so the important number is found by shape rather
- *     than by reading order.
- *  2. Vertical spacing and the type scale are derived from vh, so a short
- *     viewport shrinks the whole page instead of pushing content off-screen.
- *     Four data blocks + the page padding are budgeted to fill 100dvh.
- *  3. Long free text (song titles, difficulty names, player names) truncates
- *     rather than wrapping, except the select-page title which is allowed two
- *     lines -- it is the one string worth reading in full.
- *  4. Every edge that can meet a rounded corner or a cutout is inset by the
- *     safe-area values, so the status rail is never hidden under a notch.
+ *   60%  neutral ink: substrate, scrim, type
+ *   30%  white at low alpha: hairlines and the occasional framed panel
+ *   10%  pink + the judgement colours
+ *
+ * Layout rules
+ * ────────────
+ * 1. Figures are set as type on the artwork, not boxed. One deliberate panel
+ *    per screen at most (the results frame); everything else separates with a
+ *    hairline or with space. Uniform card-on-card was what made the old layout
+ *    feel generated.
+ * 2. Exactly one element per screen carries the eye: the pp figure on home,
+ *    theoretical pp on select, the score on play, the grade on results.
+ * 3. Spacing comes off a 4px scale (--s1..--s6). No ad-hoc margins.
+ * 4. Vertical rhythm is vh-derived so a 375px-tall viewport compresses instead
+ *    of overflowing; landscape, where vh-derived type collapses to its floor,
+ *    switches to a width-derived step and a real two-column grid.
+ * 5. Every edge that can meet a notch or a rounded corner is inset by the
+ *    safe-area values.
  */
 
 :root {
-  --bg: #0a0812;
-  --text: #fff;
-  --muted: rgba(255, 255, 255, .80);
-  --dim: rgba(255, 255, 255, .58);
+  /* ── substrate and type ─────────────────────────────────────────────── */
+  --bg: #0b0a0d;
+  --ink: #f5f4f7;
+  --muted: rgba(245, 244, 247, .68);
+  --dim: rgba(245, 244, 247, .44);
+  --faint: rgba(245, 244, 247, .20);
+  --hair: rgba(255, 255, 255, .09);
+  --hair-strong: rgba(255, 255, 255, .16);
+  --frame-bg: rgba(255, 255, 255, .035);
 
-  --accent: #ff66aa;
-  --accent-light: #ff8ec7;
-  --accent-deep: rgba(255, 102, 170, .28);
-  --cyan: #5dd8ff;
-  --good: #6ee287;
-  --warn: #ffc744;
-  --bad: #ff5757;
+  /* ── accent: osu! pink, used as accent only ─────────────────────────── */
+  --accent: #ff5fa2;
+  --accent-hi: #ff92c4;
+  --accent-dim: rgba(255, 95, 162, .55);
 
-  /* Notch / cutout / home-indicator insets. */
+  /* ── judgement colours, as the game itself uses them ─────────────────── */
+  --c-300: #6cc6ff;
+  --c-100: #7ee08a;
+  --c-50: #ffc74d;
+  --c-miss: #ff6b6b;
+  --ok: #7ee08a;
+  --bad: #ff6b6b;
+
+  /* ── safe areas ─────────────────────────────────────────────────────── */
   --sa-top: env(safe-area-inset-top, 0px);
   --sa-bottom: env(safe-area-inset-bottom, 0px);
   --sa-left: env(safe-area-inset-left, 0px);
   --sa-right: env(safe-area-inset-right, 0px);
 
-  --pad-x: clamp(14px, 4vw, 22px);
-  --pad-t: max(clamp(10px, 1.7vh, 16px), var(--sa-top));
-  --pad-b: max(clamp(10px, 1.7vh, 16px), var(--sa-bottom));
+  /* ── 4px spacing scale ──────────────────────────────────────────────── */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
 
-  /* Vertical rhythm, all viewport-relative so a short screen compresses. */
-  --gap: clamp(7px, 1.15vh, 13px);
-  --pad-in: clamp(9px, 1.5vh, 15px);
-  --radius: clamp(12px, 1.9vh, 18px);
+  --pad-x: max(clamp(16px, 4.2vw, 26px), var(--sa-left), var(--sa-right));
+  --pad-t: max(clamp(12px, 1.8vh, 18px), var(--sa-top));
+  --pad-b: max(clamp(12px, 1.8vh, 18px), var(--sa-bottom));
 
-  --fs-eyebrow: clamp(8.5px, 1.02vh, 11px);
-  --fs-xs: clamp(10px, 1.22vh, 13px);
-  --fs-sm: clamp(11.5px, 1.42vh, 15px);
-  --fs-md: clamp(13.5px, 1.72vh, 18px);
-  --fs-lg: clamp(16px, 2.15vh, 22px);
-  --fs-xl: clamp(19px, 2.6vh, 27px);
-  --fs-2xl: clamp(23px, 3.2vh, 34px);
-  --fs-3xl: clamp(29px, 4.2vh, 43px);
-  --fs-hero: clamp(38px, 6.2vh, 62px);
+  /* ── type scale ─────────────────────────────────────────────────────── */
+  --fs-micro: clamp(8.5px, 1.02vh, 10.5px);
+  --fs-label: clamp(9.5px, 1.18vh, 12px);
+  --fs-xs: clamp(10.5px, 1.3vh, 13px);
+  --fs-sm: clamp(12px, 1.5vh, 15px);
+  --fs-md: clamp(14.5px, 1.85vh, 19px);
+  --fs-lg: clamp(17.5px, 2.3vh, 24px);
+  --fs-head: clamp(22px, 3.1vh, 32px);
+  --fs-lead: clamp(27px, 3.9vh, 40px);
+  --fs-figure: clamp(48px, 9.4vh, 86px);
+  --fs-score: clamp(50px, 11vh, 96px);
 
-  --glass: linear-gradient(135deg, rgba(22, 17, 31, .84) 0%, rgba(30, 23, 41, .76) 100%);
-  --glass-soft: rgba(255, 255, 255, .055);
-  --hair: rgba(255, 255, 255, .10);
-  --text-shadow: 0 1px 3px rgba(0, 0, 0, .85), 0 2px 10px rgba(0, 0, 0, .45);
-  --shadow: 0 4px 18px rgba(0, 0, 0, .42);
-  --glow: 0 0 22px rgba(255, 102, 170, .28);
+  --shadow: 0 2px 12px rgba(0, 0, 0, .45);
+  --tsh: 0 1px 3px rgba(0, 0, 0, .8), 0 2px 12px rgba(0, 0, 0, .45);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -70,8 +93,9 @@ html, body {
   padding: 0;
   height: 100%;
   background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", system-ui, sans-serif;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Noto Sans SC", "Hiragino Sans GB", system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
   overflow: hidden;
@@ -79,10 +103,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-body {
-  height: 100vh;
-  height: 100dvh;
-}
+body { height: 100vh; height: 100dvh; }
 
 /* ── backdrop ─────────────────────────────────────────────────────────── */
 
@@ -91,15 +112,16 @@ body {
   inset: 0;
   z-index: 0;
   background: var(--bg) center / cover;
-  filter: blur(3px) brightness(.5) saturate(1.45);
-  transform: scale(1.12);
-  transition: filter .6s ease, opacity .6s ease;
+  filter: blur(4px) brightness(.42) saturate(1.5);
+  transform: scale(1.14);
+  transition: filter .6s ease;
 }
 
-/* A playing screen is a distraction; the artwork retreats further. */
-body[data-page="play"] .backdrop { filter: blur(22px) brightness(.34) saturate(1.2); }
-body[data-page="select"] .backdrop { filter: blur(1.5px) brightness(.58) saturate(1.3); }
-body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate(1.35); }
+/* The artwork is ambience, never something to read against: the scrim gets
+ * heavier than the old version so type sits on a predictable value. */
+body[data-page="play"] .backdrop { filter: blur(26px) brightness(.24) saturate(1.1); }
+body[data-page="select"] .backdrop { filter: blur(2px) brightness(.40) saturate(1.45); }
+body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) saturate(1.5); }
 
 .scrim {
   position: fixed;
@@ -107,12 +129,22 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(130% 80% at 50% 42%, rgba(10, 8, 18, 0) 0%, rgba(10, 8, 18, .68) 100%),
+    radial-gradient(120% 78% at 50% 40%, rgba(11, 10, 13, 0) 0%, rgba(11, 10, 13, .74) 100%),
     linear-gradient(180deg,
-      rgba(10, 8, 18, .90) 0%,
-      rgba(10, 8, 18, .22) 22%,
-      rgba(10, 8, 18, .30) 72%,
-      rgba(10, 8, 18, .94) 100%);
+      rgba(11, 10, 13, .92) 0%,
+      rgba(11, 10, 13, .30) 24%,
+      rgba(11, 10, 13, .38) 70%,
+      rgba(11, 10, 13, .95) 100%);
+}
+
+/* A barely-there grain keeps large flat areas from banding on OLED. */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* ── page frame ───────────────────────────────────────────────────────── */
@@ -123,612 +155,633 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
   z-index: 2;
   display: none;
   flex-direction: column;
-  justify-content: space-between;
-  gap: var(--gap);
+  gap: var(--s3);
   overflow: hidden;
   padding:
     var(--pad-t)
-    max(var(--pad-x), var(--sa-right))
+    var(--pad-x)
     var(--pad-b)
-    max(var(--pad-x), var(--sa-left));
+    var(--pad-x);
 }
 
 .page.active { display: flex; }
 
-/* Everything between the status rail and the footer lives here, so the leftover
- * height is spent as breathing room around one centred group instead of pooling
- * into a single dead band under it. `margin: auto` centres it and degrades to a
- * plain top-aligned, scrollable column when the content is taller than the
- * screen -- which is what landscape on a short phone does to the select page. */
+/* The content group. `margin: auto 0` centres it and degrades to a
+ * top-aligned scrollable column when it is taller than the screen. */
 .body {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: var(--s3);
+  flex: 1;
   min-height: 0;
   margin: auto 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
 }
 
-/* ── status rail ──────────────────────────────────────────────────────────
- * Sits in the top-right corner, inset past any notch, sharing the first row
- * with the header rather than claiming a full band of its own. */
+/* ── status rail ──────────────────────────────────────────────────────── */
 
 .rail-right {
   position: absolute;
-  top: max(clamp(8px, 1.3vh, 13px), var(--sa-top));
-  right: max(var(--pad-x), var(--sa-right));
+  top: var(--pad-t);
+  right: var(--pad-x);
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--fs-eyebrow);
+  gap: var(--s2);
+  font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: .04em;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   color: var(--dim);
-  text-shadow: var(--text-shadow);
+  text-shadow: var(--tsh);
 }
 
-.clock { opacity: .75; }
-
+.clock { opacity: .7; letter-spacing: .1em; }
 .conn { display: flex; align-items: center; gap: 5px; }
 
 .dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--bad);
-  box-shadow: 0 0 8px var(--bad);
+  box-shadow: 0 0 7px var(--bad);
   animation: pulse 2s ease-in-out infinite;
 }
 
-.dot.idle { background: var(--good); box-shadow: 0 0 8px var(--good); }
-.dot.live { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation-duration: 1s; }
+.dot.idle { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+.dot.live { background: var(--accent); box-shadow: 0 0 9px var(--accent); animation-duration: 1s; }
 
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 
-/* ── header ───────────────────────────────────────────────────────────── */
+/* ── shared type ──────────────────────────────────────────────────────── */
 
-.hd {
-  display: flex;
-  align-items: center;
-  gap: clamp(9px, 2.6vw, 14px);
-  min-width: 0;
-}
-
-/* The status rail floats over the top-right corner, so the header keeps clear
- * of it. Kept as tight as the rail itself: a wider reserve just cost the song
- * title characters it needed. */
-.hd.is-compact { padding-right: clamp(50px, 17vw, 92px); }
-
-.hd-text { flex: 1; min-width: 0; }
-
-.hd-avatar {
-  width: clamp(42px, 11vw, 62px);
-  height: clamp(42px, 11vw, 62px);
-  border-radius: 50%;
-  flex-shrink: 0;
-  object-fit: cover;
-  background: linear-gradient(135deg, var(--accent-deep), rgba(93, 216, 255, .22));
-  border: 2px solid rgba(255, 255, 255, .16);
-  box-shadow: 0 0 18px rgba(255, 102, 170, .22);
-}
-
-.hd-eyebrow,
 .eyebrow {
-  font-size: var(--fs-eyebrow);
+  font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: .14em;
+  letter-spacing: .2em;
   text-transform: uppercase;
   color: var(--dim);
-  text-shadow: var(--text-shadow);
+  text-shadow: var(--tsh);
 }
 
-.hd-title {
-  margin: 2px 0 0;
-  font-size: var(--fs-xl);
+/* Headers carry a hairline under them instead of a panel behind them. */
+.head {
+  position: relative;
+  min-width: 0;
+  padding-right: clamp(96px, 24vw, 150px);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--hair);
+}
+
+.head.is-full { display: flex; align-items: center; gap: var(--s3); padding-right: 0; }
+.head-text { flex: 1; min-width: 0; }
+
+.head-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: var(--tsh);
+}
+
+.head-title {
+  margin: var(--s1) 0 0;
+  font-size: var(--fs-head);
   font-weight: 800;
-  line-height: 1.12;
-  letter-spacing: -.01em;
-  text-shadow: var(--text-shadow);
+  line-height: 1.14;
+  letter-spacing: -.02em;
+  text-shadow: var(--tsh);
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Only the select page earns a second line: the title being chosen is the
- * whole reason that screen exists. */
-.page-select .hd-title {
-  font-size: var(--fs-2xl);
+/* The lead heading of a screen. The select title is the one string worth
+ * reading in full, so it alone is allowed a second line. */
+.head-title.is-lead {
+  font-size: var(--fs-lead);
+  line-height: 1.08;
+  letter-spacing: -.025em;
+}
+
+.page-select .head-title.is-lead {
   white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  line-height: 1.1;
 }
 
-/* The player line on the results screen doubles as the mods row, so it is a
- * flex strip rather than another block in the column. */
-.hd-eyebrow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.hd-eyebrow .chips { gap: 4px; }
-
-.hd-sub {
-  margin-top: 2px;
+.head-sub {
+  margin-top: var(--s1);
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--muted);
-  text-shadow: var(--text-shadow);
+  text-shadow: var(--tsh);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.page-select .hd-sub { color: var(--accent-light); font-weight: 700; }
+.page-select .head-sub { color: var(--accent-hi); font-weight: 700; }
 
-/* ── chips ────────────────────────────────────────────────────────────── */
+/* ── who: the account line ────────────────────────────────────────────── */
 
-.chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
-.hd .chips { flex-shrink: 0; justify-content: flex-end; max-width: 42%; }
-
-/* A chips row that owns the full width, instead of sharing a header line. */
-.chips-row {
+.who {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  align-items: center;
+  gap: var(--s3);
   min-width: 0;
+  padding-right: clamp(96px, 24vw, 150px);
 }
 
-.tag, .mod {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: var(--fs-eyebrow);
-  font-weight: 700;
-  letter-spacing: .03em;
-  background: var(--glass-soft);
-  color: var(--muted);
-  border: 1px solid var(--hair);
+.who-avatar {
+  width: clamp(44px, 10.5vh, 64px);
+  height: clamp(44px, 10.5vh, 64px);
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--hair-strong);
+}
+
+.who-text { min-width: 0; }
+
+.who-name {
+  margin: 0;
+  font-size: var(--fs-head);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  text-shadow: var(--tsh);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mod {
-  background: var(--accent-deep);
-  color: var(--accent-light);
-  border-color: rgba(255, 102, 170, .38);
+.who-sub {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: var(--tsh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.mod.none { background: var(--glass-soft); color: var(--dim); border-color: var(--hair); }
+/* ── figure: the one number that owns the screen ──────────────────────── */
 
-/* ── ring — a compact radial readout ──────────────────────────────────── */
+.figure { min-width: 0; }
 
-.ring {
+.figure-label {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: var(--tsh);
+}
+
+.figure-value {
+  font-size: var(--fs-figure);
+  font-weight: 800;
+  line-height: .92;
+  letter-spacing: -.04em;
+  margin-top: var(--s1);
+  background: linear-gradient(112deg, #ffffff 0%, #ffe3f0 46%, var(--accent-hi) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 22px rgba(255, 95, 162, .28));
+}
+
+/* ── rail-stats: a row divided by hairlines, not by boxes ─────────────── */
+
+.rail-stats {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.stat {
+  min-width: 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--hair);
+}
+
+.stat:first-child { padding-left: 0; border-left: 0; }
+
+.stat b {
+  display: block;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  text-shadow: var(--tsh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat i {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.rail-stats.is-tight .stat b { font-size: var(--fs-md); }
+
+/* ── now: the selected map ────────────────────────────────────────────── */
+
+.now {
+  position: relative;
+  min-width: 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--hair);
+}
+
+.now-title {
+  margin: var(--s1) 0 0;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  text-shadow: var(--tsh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-sub {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--accent-hi);
+  text-shadow: var(--tsh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── chips ────────────────────────────────────────────────────────────── */
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); min-width: 0; }
+.chips-row { display: flex; flex-wrap: wrap; gap: var(--s1); margin-top: var(--s2); }
+
+.tag, .mod {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid var(--hair);
+  border-radius: 3px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.mod { border-color: rgba(255, 95, 162, .35); color: var(--accent-hi); }
+.mod.none { border-color: var(--hair); color: var(--dim); }
+
+/* ── stars: radial readout of the difficulty rating ───────────────────── */
+
+.stars { display: flex; align-items: center; gap: var(--s4); min-width: 0; }
+
+.stars-ring {
   position: relative;
   flex-shrink: 0;
   display: grid;
-  place-items: center;
-  width: clamp(62px, 17vw, 92px);
-  height: clamp(62px, 17vw, 92px);
+  place-content: center;
+  justify-items: center;
+  gap: 1px;
+  width: clamp(64px, 17vh, 100px);
+  height: clamp(64px, 17vh, 100px);
   border-radius: 50%;
-  font-size: var(--fs-lg);
   font-weight: 800;
-  text-shadow: var(--text-shadow);
+  letter-spacing: -.03em;
+  text-shadow: var(--tsh);
+  /* The ring shows the rating against a 10★ ceiling, so its fill is the
+   * difficulty at a glance and the number is the precise value. */
   background:
-    radial-gradient(circle at 50% 50%, rgba(12, 9, 19, .92) 60%, transparent 61%),
-    conic-gradient(var(--accent) calc(var(--p, 0) * 1turn), rgba(255, 255, 255, .10) 0);
-  box-shadow: 0 0 20px rgba(255, 102, 170, .22);
+    radial-gradient(circle, rgba(11, 10, 13, .94) 62%, transparent 63%),
+    conic-gradient(from -90deg,
+      var(--accent) calc(var(--p, 0) * 1turn),
+      rgba(255, 255, 255, .09) 0);
+  box-shadow: 0 0 26px rgba(255, 95, 162, .16);
 }
 
-.ring.is-static {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(12, 9, 19, .92) 60%, transparent 61%),
-    conic-gradient(from -90deg, var(--accent), var(--cyan), var(--accent));
-  box-shadow: 0 0 24px rgba(255, 102, 170, .3);
+.stars-ring > span { font-size: var(--fs-lg); line-height: 1; }
+
+.stars-ring::after {
+  content: "★";
+  font-size: var(--fs-micro);
+  color: var(--accent-hi);
+  letter-spacing: 0;
 }
 
-.ring-value { font-size: var(--fs-lg); line-height: 1; }
-.ring-sub { font-size: var(--fs-eyebrow); color: var(--dim); font-weight: 700; }
+.stars-body { min-width: 0; }
 
-/* Small rings used inline (title bars, time readouts). */
-.foot .ring {
-  width: clamp(44px, 11.5vw, 58px);
-  height: clamp(44px, 11.5vw, 58px);
-  font-size: var(--fs-xs);
+.stars-count {
+  margin: 2px 0 3px;
+  font-size: var(--fs-head);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.03em;
+  text-shadow: var(--tsh);
 }
 
-/* ── duo — ring beside its explanation ────────────────────────────────── */
+/* ── attrs ────────────────────────────────────────────────────────────── */
 
-.duo {
-  display: flex;
-  align-items: center;
-  gap: clamp(12px, 3.4vw, 20px);
-  padding: var(--pad-in);
-  background: var(--glass);
-  border: 1px solid var(--hair);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(14px) saturate(1.3);
-  position: relative;
-  overflow: hidden;
-}
-
-.duo::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: .5;
-}
-
-.duo-body { min-width: 0; }
-.duo-body .big { font-size: var(--fs-2xl); font-weight: 800; line-height: 1.05; text-shadow: var(--text-shadow); }
-.duo-body .eyebrow { margin-top: 3px; }
-
-/* ── attrs — four equal cells, values dominant ────────────────────────── */
-
-.attrs { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(5px, 1.6vw, 9px); }
+.attrs { display: grid; grid-template-columns: repeat(4, 1fr); }
 
 .attr {
-  padding: clamp(6px, 1.1vh, 10px) 4px;
-  border-radius: clamp(9px, 1.5vh, 13px);
-  background: var(--glass-soft);
-  border: 1px solid var(--hair);
-  text-align: center;
+  min-width: 0;
+  padding-left: var(--s3);
+  border-left: 1px solid var(--hair);
 }
 
-.attr b { display: block; font-size: var(--fs-lg); font-weight: 800; line-height: 1; text-shadow: var(--text-shadow); }
+.attr:first-child { padding-left: 0; border-left: 0; }
+
+.attr b {
+  display: block;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.02em;
+  text-shadow: var(--tsh);
+}
+
 .attr i {
   display: block;
   margin-top: 3px;
   font-style: normal;
-  font-size: var(--fs-eyebrow);
+  font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: .12em;
-  color: var(--dim);
-}
-
-/* ── gauge — the one headline figure per screen ───────────────────────── */
-
-.gauge {
-  position: relative;
-  padding: clamp(10px, 1.9vh, 18px) var(--pad-in);
-  border-radius: var(--radius);
-  background: var(--glass);
-  border: 1px solid var(--hair);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(16px) saturate(1.4);
-  overflow: hidden;
-}
-
-.gauge.is-accent { box-shadow: var(--shadow), var(--glow); border-color: rgba(255, 102, 170, .22); }
-
-.gauge.is-accent::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(110% 140% at 18% 0%, rgba(255, 102, 170, .16) 0%, transparent 62%);
-  pointer-events: none;
-}
-
-.gauge-label {
-  position: relative;
-  font-size: var(--fs-eyebrow);
-  font-weight: 700;
-  letter-spacing: .14em;
+  letter-spacing: .16em;
   text-transform: uppercase;
   color: var(--dim);
-  text-shadow: var(--text-shadow);
 }
 
-.gauge-value {
-  position: relative;
-  font-size: var(--fs-hero);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -.02em;
-  margin-top: 2px;
-  background: linear-gradient(115deg, #fff 0%, #ffd9ec 42%, var(--accent-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 20px rgba(255, 102, 170, .38));
-}
-
-/* A footer rail inside the gauge: four mini readouts, hairline separated.
- * Reads as one object instead of four stacked tiles. */
-.gauge-foot {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
-  margin-top: clamp(6px, 1.1vh, 11px);
-  padding-top: clamp(5px, 1vh, 9px);
-  border-top: 1px solid var(--hair);
-}
-
-.tick { text-align: center; min-width: 0; }
-.tick:first-child { text-align: left; }
-.tick:last-child { text-align: right; }
-.tick b { display: block; font-size: var(--fs-md); font-weight: 800; line-height: 1.1; text-shadow: var(--text-shadow); }
-.tick i {
-  display: block;
-  margin-top: 1px;
-  font-style: normal;
-  font-size: var(--fs-eyebrow);
-  font-weight: 700;
-  letter-spacing: .1em;
-  color: var(--dim);
-}
-
-/* ── ladder — pp across accuracies, weight encoded as fill ────────────── */
+/* ── ladder: pp across accuracies ─────────────────────────────────────────
+ * The one framed block on the select screen. Fill height encodes the share of
+ * the theoretical maximum, so the drop-off is read before the numbers are. */
 
 .ladder {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  gap: 4px;
+  gap: 1px;
   min-height: 0;
+  background: var(--hair);
+  border: 1px solid var(--hair);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .rung {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 3px;
-  padding: clamp(5px, 0.9vh, 9px) 3px;
-  border-radius: clamp(8px, 1.3vh, 11px);
-  background: linear-gradient(180deg,
-    rgba(255, 102, 170, calc(.06 + var(--w, 0) * .20)) 0%,
-    rgba(255, 255, 255, .03) 100%);
-  border: 1px solid rgba(255, 102, 170, calc(.10 + var(--w, 0) * .22));
+  gap: 2px;
+  padding: var(--s2) 2px var(--s1);
+  background:
+    linear-gradient(180deg,
+      rgba(255, 95, 162, calc(var(--w, 0) * .13)) 0%,
+      rgba(11, 10, 13, .55) 100%);
   text-align: center;
 }
 
-.rung b { font-size: var(--fs-sm); font-weight: 800; line-height: 1.1; text-shadow: var(--text-shadow); }
+.rung b {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  text-shadow: var(--tsh);
+}
+
 .rung i {
   font-style: normal;
-  font-size: var(--fs-eyebrow);
+  font-size: var(--fs-micro);
   font-weight: 700;
-  color: var(--dim);
-  letter-spacing: .04em;
-}
-
-/* ── readout — the playing/results trio ───────────────────────────────── */
-
-.readout {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: clamp(5px, 1.6vw, 9px);
-}
-
-.ro {
-  padding: clamp(7px, 1.3vh, 13px) 6px;
-  border-radius: clamp(10px, 1.6vh, 14px);
-  background: var(--glass);
-  border: 1px solid var(--hair);
-  box-shadow: var(--shadow);
-  text-align: center;
-  min-width: 0;
-}
-
-.ro b {
-  display: block;
-  font-size: var(--fs-2xl);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -.01em;
-  text-shadow: var(--text-shadow);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ro i {
-  display: block;
-  margin-top: 4px;
-  font-style: normal;
-  font-size: var(--fs-eyebrow);
-  font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .06em;
   color: var(--dim);
 }
 
-/* Each readout owns a hue so it is identified before it is read. */
-.ro.is-combo b { color: var(--cyan); text-shadow: var(--text-shadow), 0 0 16px rgba(93, 216, 255, .45); }
-.ro.is-acc   b { color: var(--good); text-shadow: var(--text-shadow), 0 0 16px rgba(110, 226, 135, .40); }
-.ro.is-pp    b {
-  background: linear-gradient(115deg, #fff, var(--accent-light));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  filter: drop-shadow(0 0 14px rgba(255, 102, 170, .45));
-}
+/* ── live: the score, and the health rail beside it ───────────────────── */
 
-.ro.is-combo, .ro.is-acc, .ro.is-pp { border-top: 2px solid transparent; }
-.ro.is-combo { border-top-color: rgba(93, 216, 255, .45); }
-.ro.is-acc   { border-top-color: rgba(110, 226, 135, .45); }
-.ro.is-pp    { border-top-color: rgba(255, 102, 170, .55); }
+.live { display: flex; align-items: stretch; gap: var(--s4); min-width: 0; }
 
-/* ── score strip — score with a health rail alongside ─────────────────── */
-
-.score-strip { display: flex; align-items: center; gap: clamp(9px, 2.6vw, 15px); }
-
-.score-num {
+.live-score {
   flex: 1;
   min-width: 0;
-  font-size: var(--fs-hero);
+  font-size: var(--fs-score);
   font-weight: 800;
-  line-height: .95;
-  letter-spacing: -.025em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, .9), 0 4px 22px rgba(0, 0, 0, .6);
-  filter: drop-shadow(0 0 18px rgba(255, 255, 255, .28));
+  line-height: .9;
+  letter-spacing: -.045em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, .9), 0 4px 30px rgba(0, 0, 0, .6);
+  color: var(--ink);
 }
 
 .hp {
-  width: clamp(11px, 2.6vw, 15px);
-  height: clamp(38px, 7.4vh, 62px);
-  border-radius: 999px;
+  width: clamp(10px, 2.2vh, 14px);
+  min-height: clamp(44px, 9vh, 78px);
+  border-radius: 2px;
   flex-shrink: 0;
-  background: rgba(0, 0, 0, .52);
+  background: rgba(0, 0, 0, .55);
   border: 1px solid var(--hair);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   overflow: hidden;
-  box-shadow: inset 0 1px 5px rgba(0, 0, 0, .7);
 }
 
 .hp-fill {
   width: 100%;
   height: 100%;
-  background: linear-gradient(180deg, var(--good) 0%, var(--cyan) 100%);
-  box-shadow: 0 0 14px rgba(110, 226, 135, .55);
+  background: linear-gradient(180deg, var(--ok) 0%, var(--c-300) 100%);
   transition: height .18s ease, background .3s ease;
 }
 
-/* Health is the one value worth colouring by danger. */
-.hp.is-warn .hp-fill { background: linear-gradient(180deg, var(--warn), #ff9c44); box-shadow: 0 0 14px rgba(255, 199, 68, .55); }
-.hp.is-danger .hp-fill { background: linear-gradient(180deg, #ff8a5c, var(--bad)); box-shadow: 0 0 16px rgba(255, 87, 87, .7); }
+.hp.is-warn .hp-fill { background: linear-gradient(180deg, var(--c-50), #ff9c44); }
+.hp.is-danger .hp-fill { background: linear-gradient(180deg, #ff8a5c, var(--bad)); }
 
-/* ── judges — the judgement split as one rail ─────────────────────────── */
+/* Combo and accuracy carry the live reading; pp is context and stays quiet. */
+.live-stats {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr auto;
+  align-items: end;
+  gap: var(--s3);
+}
+
+.live-stat { min-width: 0; padding-left: var(--s3); border-left: 1px solid var(--hair); }
+.live-stat:first-child { padding-left: 0; border-left: 0; }
+
+.live-stat b {
+  display: block;
+  font-size: var(--fs-figure);
+  font-weight: 800;
+  line-height: .92;
+  letter-spacing: -.04em;
+  text-shadow: var(--tsh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-stat i {
+  display: block;
+  margin-top: var(--s1);
+  font-style: normal;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.live-stat.is-combo b { color: var(--c-300); }
+.live-stat.is-acc b { color: var(--ok); }
+.live-stat.is-pp b { font-size: var(--fs-head); color: var(--accent-hi); }
+
+/* ── judges ───────────────────────────────────────────────────────────── */
 
 .judges {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  border-radius: clamp(9px, 1.5vh, 13px);
-  overflow: hidden;
-  background: var(--hair);
-  border: 1px solid var(--hair);
-  box-shadow: var(--shadow);
+  border-top: 1px solid var(--hair);
 }
 
 .judge {
-  padding: clamp(6px, 1.1vh, 11px) 3px;
-  background: rgba(16, 12, 23, .80);
-  text-align: center;
   min-width: 0;
-  backdrop-filter: blur(10px);
+  padding: var(--s2) 0 0 var(--s3);
+  border-left: 1px solid var(--hair);
 }
 
-.judge b { display: block; font-size: var(--fs-lg); font-weight: 800; line-height: 1; text-shadow: var(--text-shadow); }
+.judge:first-child { padding-left: 0; border-left: 0; }
+
+.judge b {
+  display: block;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: var(--tsh);
+}
+
 .judge i {
   display: block;
   margin-top: 3px;
   font-style: normal;
-  font-size: var(--fs-eyebrow);
+  font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: .16em;
+  text-transform: uppercase;
   color: var(--dim);
 }
 
-.judge.k300 b { color: var(--cyan); }
-.judge.k100 b { color: var(--good); }
-.judge.k50  b { color: var(--warn); }
-.judge.kmiss b { color: var(--bad); }
+.judge.k300 b { color: var(--c-300); }
+.judge.k100 b { color: var(--c-100); }
+.judge.k50 b { color: var(--c-50); }
+.judge.kmiss b { color: var(--c-miss); }
 
-/* ── verdict — grade badge beside the score ───────────────────────────── */
-
-.verdict {
-  display: flex;
-  align-items: center;
-  gap: clamp(10px, 3vw, 18px);
-  min-width: 0;
-}
+/* ── verdict: the grade is the object, not a badge in a row ───────────── */
 
 .verdict-grade {
-  flex-shrink: 0;
   display: grid;
-  place-items: center;
-  min-width: clamp(72px, 21vw, 118px);
-  height: clamp(72px, 15vh, 118px);
-  padding: 0 clamp(8px, 2.4vw, 16px);
-  border-radius: clamp(14px, 2.4vh, 22px);
-  font-size: clamp(42px, 9.4vh, 88px);
+  place-content: center;
+  border-radius: 4px;
+  font-size: clamp(96px, 26vh, 190px);
   font-weight: 800;
-  line-height: .88;
-  letter-spacing: -.03em;
-  color: #fff;
-  background: rgba(255, 255, 255, .09);
+  line-height: .8;
+  letter-spacing: -.06em;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .05);
   border: 1px solid var(--hair);
-  text-shadow: 0 3px 14px rgba(0, 0, 0, .75);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, .7);
 }
 
-/* Grade colours mirror osu!'s own; silver is reserved for HD/FL ranks. */
 .verdict-grade[data-grade="X"],
-.verdict-grade[data-grade="SS"] { background: linear-gradient(140deg, #ffd76e, #ff9f43); box-shadow: 0 0 26px rgba(255, 180, 70, .42); }
-.verdict-grade[data-grade="XH"] { background: linear-gradient(140deg, #e8f4ff, #a9c4d8); color: #1b2430; box-shadow: 0 0 26px rgba(200, 230, 255, .40); }
-.verdict-grade[data-grade="S"]  { background: linear-gradient(140deg, #ffd76e, #ffb347); box-shadow: 0 0 24px rgba(255, 190, 80, .38); }
-.verdict-grade[data-grade="SH"] { background: linear-gradient(140deg, #e8f4ff, #b6c9d9); color: #1b2430; box-shadow: 0 0 24px rgba(200, 230, 255, .36); }
-.verdict-grade[data-grade="A"]  { background: linear-gradient(140deg, #7ef097, #35c46a); box-shadow: 0 0 22px rgba(110, 226, 135, .36); }
-.verdict-grade[data-grade="B"]  { background: linear-gradient(140deg, #7fd8ff, #35a8e0); box-shadow: 0 0 22px rgba(93, 216, 255, .34); }
-.verdict-grade[data-grade="C"]  { background: linear-gradient(140deg, #ffc744, #f09030); box-shadow: 0 0 22px rgba(255, 199, 68, .32); }
+.verdict-grade[data-grade="SS"] { background: linear-gradient(150deg, #ffd76e, #ff9f43); color: #241703; border-color: transparent; box-shadow: 0 0 44px rgba(255, 180, 70, .3); }
+.verdict-grade[data-grade="S"]  { background: linear-gradient(150deg, #ffd76e, #ffb347); color: #241703; border-color: transparent; box-shadow: 0 0 40px rgba(255, 190, 80, .26); }
+.verdict-grade[data-grade="XH"],
+.verdict-grade[data-grade="SH"] { background: linear-gradient(150deg, #eef6ff, #b9cbd9); color: #171f28; border-color: transparent; box-shadow: 0 0 40px rgba(200, 230, 255, .24); }
+.verdict-grade[data-grade="A"]  { background: linear-gradient(150deg, #86ef9c, #35c46a); color: #06210f; border-color: transparent; box-shadow: 0 0 36px rgba(110, 226, 135, .26); }
+.verdict-grade[data-grade="B"]  { background: linear-gradient(150deg, #86dcff, #35a8e0); color: #04202e; border-color: transparent; box-shadow: 0 0 36px rgba(93, 216, 255, .24); }
+.verdict-grade[data-grade="C"]  { background: linear-gradient(150deg, #ffd06a, #f09030); color: #2b1a03; border-color: transparent; box-shadow: 0 0 36px rgba(255, 199, 68, .24); }
 .verdict-grade[data-grade="D"],
-.verdict-grade[data-grade="F"]  { background: linear-gradient(140deg, #ff7a7a, #d63b3b); box-shadow: 0 0 22px rgba(255, 87, 87, .34); }
+.verdict-grade[data-grade="F"]  { background: linear-gradient(150deg, #ff9090, #d63b3b); color: #2b0606; border-color: transparent; box-shadow: 0 0 36px rgba(255, 87, 87, .26); }
 
-.verdict-body { flex: 1; min-width: 0; }
+.verdict-score { min-width: 0; align-self: center; }
 
-.verdict-score {
-  font-size: var(--fs-hero);
+.verdict-value {
+  font-size: var(--fs-score);
   font-weight: 800;
-  line-height: 1;
-  letter-spacing: -.025em;
-  margin: 3px 0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, .9), 0 4px 22px rgba(0, 0, 0, .55);
-  white-space: nowrap;
+  line-height: .92;
+  letter-spacing: -.04em;
+  margin: var(--s1) 0 var(--s2);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, .9), 0 4px 30px rgba(0, 0, 0, .6);
 }
 
-/* ── footer — progress rail ───────────────────────────────────────────── */
+/* ── frame: one bounded block for the remaining figures ───────────────── */
 
-.foot {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: clamp(9px, 2.6vw, 15px);
-  min-width: 0;
+.frame {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--hair);
+  border-radius: 4px;
+  background: var(--frame-bg);
+  padding: var(--s3) var(--s3) var(--s2);
 }
 
+.frame .stat { padding-left: var(--s3); border-left: 1px solid var(--hair); }
+.frame .stat:first-child { padding-left: 0; border-left: 0; }
+
+/* ── footer: progress rail ────────────────────────────────────────────── */
+
+.foot { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
 .foot.is-plain { display: block; }
-
-/* A full-height rail keeps its cells pinned top and bottom, so a stretched
- * block reads as capacity rather than as a stranded row in the middle. */
-.page-play .judges, .page-results .judges { align-content: space-between; }
-
-.foot-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
+.foot-body { flex: 1; min-width: 0; }
 
 .track {
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .11);
+  height: 3px;
+  background: rgba(255, 255, 255, .10);
   overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .55);
 }
 
 .track-fill {
   display: block;
   height: 100%;
   width: 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%);
-  box-shadow: 0 0 12px rgba(255, 102, 170, .55);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hi) 100%);
   transition: width .15s linear;
 }
 
 .foot-meta {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--s3);
   min-width: 0;
-  font-size: var(--fs-xs);
+  margin-top: var(--s1);
+  font-size: var(--fs-micro);
   font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   color: var(--dim);
-  text-shadow: var(--text-shadow);
+  text-shadow: var(--tsh);
 }
 
 .foot-meta > :last-child { color: var(--muted); }
@@ -743,15 +796,15 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 24px;
-  background: rgba(10, 8, 18, .95);
-  backdrop-filter: blur(12px);
+  gap: var(--s3);
+  padding: var(--s5);
+  background: rgba(11, 10, 13, .96);
+  backdrop-filter: blur(14px);
 }
 
 .offline.active { display: flex; }
 
-.offline-icon { font-size: clamp(34px, 7vh, 54px); opacity: .55; }
+.offline-icon { font-size: clamp(30px, 7vh, 46px); opacity: .45; }
 
 .offline-text {
   font-size: var(--fs-md);
@@ -759,7 +812,7 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
   color: var(--muted);
   text-align: center;
   max-width: 34ch;
-  text-shadow: var(--text-shadow);
+  text-shadow: var(--tsh);
 }
 
 /* ── access token prompt ──────────────────────────────────────────────── */
@@ -767,28 +820,27 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
 .token-row {
   position: fixed;
   left: 50%;
-  bottom: max(clamp(14px, 3vh, 24px), var(--sa-bottom));
+  bottom: max(var(--s5), var(--sa-bottom));
   transform: translateX(-50%);
   z-index: 1000;
   display: flex;
-  gap: 8px;
-  padding: 8px;
-  background: var(--glass);
-  border: 1px solid var(--hair);
-  border-radius: 12px;
+  gap: var(--s2);
+  padding: var(--s2);
+  background: rgba(20, 19, 24, .96);
+  border: 1px solid var(--hair-strong);
+  border-radius: 4px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px) saturate(1.3);
 }
 
 .token-row[hidden] { display: none; }
 
 .token-input {
   width: min(48vw, 190px);
-  padding: 9px 11px;
+  padding: var(--s2) var(--s3);
   border: 1px solid var(--hair);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, .42);
-  color: var(--text);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, .45);
+  color: var(--ink);
   font: inherit;
   font-size: var(--fs-sm);
 }
@@ -796,9 +848,9 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
 .token-input:focus { outline: none; border-color: var(--accent); }
 
 .token-save {
-  padding: 9px 16px;
+  padding: var(--s2) var(--s4);
   border: 0;
-  border-radius: 8px;
+  border-radius: 3px;
   background: var(--accent);
   color: #fff;
   font: inherit;
@@ -808,90 +860,152 @@ body[data-page="results"] .backdrop { filter: blur(1px) brightness(.62) saturate
 }
 
 /* ── narrow screens ───────────────────────────────────────────────────────
- * Below ~360px the four-cell rails stop fitting their labels; drop to two
- * columns and let the values keep their size. */
+ * Below ~360px the four-cell rails stop fitting their labels. */
 
 @media (max-width: 359px) {
-  .gauge-foot { grid-template-columns: repeat(2, 1fr); row-gap: 6px; }
-  .tick:nth-child(odd) { text-align: left; }
-  .tick:nth-child(-n+2) { border-bottom: 1px solid var(--hair); padding-bottom: 5px; }
+  .rail-stats { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); row-gap: var(--s3); }
+  .rail-stats .stat:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .rail-stats .stat:nth-child(n + 3) { padding-top: var(--s3); border-top: 1px solid var(--hair); }
   .ladder { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
 }
 
 /* ── landscape ───────────────────────────────────────────────────────────
- * A phone on its side has little height but plenty of width, so the column
- * becomes two columns and the headline sizes switch to a width-derived scale
- * (vh-derived sizes would collapse to their minimums here). */
+ * A phone on its side has little height and plenty of width. The three
+ * data-and-type homes of a screen — head, body, foot — split a fixed 3-row
+ * grid, so the middle row absorbs the remaining height instead of pushing the
+ * footer off. The type scale switches to a width-derived step, because
+ * vh-derived sizes collapse to their floor on a 375px-tall viewport.
+ *
+ * These are plain two-column grids deliberately: a media query cannot match on
+ * device width, so this must also be correct on a desktop-shaped window.
+ */
 
-@media (orientation: landscape) and (max-height: 560px) {
+@media (orientation: landscape) and (max-height: 620px) {
   :root {
-    --gap: clamp(6px, 1.5vh, 10px);
-    --pad-in: clamp(7px, 1.8vh, 12px);
-    --pad-x: clamp(12px, 2.2vw, 20px);
-    --fs-eyebrow: clamp(8px, 1.8vh, 11px);
-    --fs-xs: clamp(9.5px, 2.1vh, 13px);
-    --fs-sm: clamp(11px, 2.5vh, 15px);
-    --fs-md: clamp(13px, 3vh, 18px);
-    --fs-lg: clamp(15px, 3.6vh, 22px);
-    --fs-xl: clamp(18px, 4.4vh, 27px);
-    --fs-2xl: clamp(21px, 5.4vh, 34px);
-    --fs-3xl: clamp(25px, 6.6vh, 43px);
-    --fs-hero: clamp(30px, 8vh, 52px);
+    --fs-micro: clamp(8px, 1.85vh, 10px);
+    --fs-label: clamp(9px, 2.05vh, 11.5px);
+    --fs-xs: clamp(10px, 2.3vh, 13px);
+    --fs-sm: clamp(11.5px, 2.7vh, 15px);
+    --fs-md: clamp(13.5px, 3.3vh, 18px);
+    --fs-lg: clamp(16px, 3.9vh, 22px);
+    --fs-head: clamp(21px, 5.9vh, 34px);
+    --fs-lead: clamp(25px, 7.4vh, 42px);
+    --fs-figure: clamp(46px, 14.4vh, 78px);
+    --fs-score: clamp(50px, 15.4vh, 88px);
   }
 
-  /* The header and footer keep the full width; everything between them --
-   * `.body` -- is what splits into two columns. The body is pinned to exactly
-   * the height the page leaves for it (`flex: 1` against the footer), so the
-   * middle row absorbs any overflow instead of growing past the footer and
-   * colliding with it. */
-  .body {
-    flex: 1;
+  body[data-page="play"] .backdrop { filter: blur(30px) brightness(.22) saturate(1.1); }
+
+  /* 3-row frame: head / body / foot. The middle row takes all the slack, so a
+   * screen with a small content budget (home) does not leave a dead band
+   * between its content and the footer.
+   *
+   * Placement is explicit rather than left to auto-flow: auto-placement has to
+   * resolve around the full-width row-2 item and ends up sizing the first row
+   * from the page's own auto rows instead of the header inside it. */
+  .page { display: none; gap: var(--s2); }
+  .page.active {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-auto-rows: min-content;
-    align-content: stretch;
-    column-gap: clamp(12px, 2.4vw, 26px);
-    row-gap: var(--gap);
-    margin: 0;
-    min-height: 0;
-    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    row-gap: var(--s2);
   }
 
-  /* Rows that span the full width instead of pairing off. */
-  .hd, .chips-row { grid-column: 1 / -1; }
+  .page > .body { grid-row: 2; grid-column: 1 / -1; min-height: 0; margin: 0; }
+  .page > .head,
+  .page > .who { grid-row: 1; grid-column: 1 / -1; align-self: start; }
+  .page > .foot { grid-row: 3; grid-column: 1 / -1; }
 
-  .foot { margin-top: 0; }
+  .who { padding-right: 0; }
+  .head { padding-bottom: var(--s1); }
 
-  /* Landscape is width-rich, so blocks that were tall in portrait sit side by
-   * side and the page fits without scrolling. */
-  .attrs { grid-column: 1 / -1; }
+  /* ── home: account across the top, figure left, selected map right ── */
+  .body-home {
+    display: grid;
+    grid-template-columns: 55fr 45fr;
+    grid-template-rows: auto 1fr;
+    column-gap: var(--s6);
+    align-items: start;
+  }
+  .body-home > .who { grid-column: 1 / -1; grid-row: 1; }
+  .body-home > .figures { grid-column: 1; grid-row: 2 / span 2; align-self: center; }
+  .body-home > .now {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    border-top: 0;
+    border-left: 1px solid var(--hair);
+    padding-top: 0;
+    padding-left: var(--s5);
+  }
+  /* Both columns open on their own label, so the labels share a line. */
+  .body-home .eyebrow { line-height: 1; margin: 0; }
 
-  .verdict-grade { min-width: clamp(58px, 15vh, 92px); height: clamp(58px, 15vh, 92px); }
-  .ring { width: clamp(52px, 14vh, 80px); height: clamp(52px, 14vh, 80px); }
-  .gauge-value, .verdict-score, .score-num { font-size: clamp(28px, 7.4vh, 52px); }
+  /* ── select: figures left, map identity right ─────────────────────── */
+  .body-select {
+    display: grid;
+    grid-template-columns: 1.02fr .98fr;
+    column-gap: var(--s5);
+    min-height: 0;
+  }
+  .sel-left { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); min-height: 0; }
+  .sel-right { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); min-height: 0; }
 
-  /* ── per page ─────────────────────────────────────────────────────────
-   * Explicit placement, because auto-flow would put one block per row on the
-   * pages that have an odd count. */
+  /* ── play: title, the score owning the middle, live feedback on the
+   * bottom rail. Combo and accuracy split the width; pp is held smaller
+   * because it is context, and the health track sits as a column on that
+   * same rail so it shares the baseline instead of floating beside the
+   * score with nothing to align to. */
+  .body-play {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    row-gap: var(--s3);
+    min-height: 0;
+  }
+  .body-play > .head { grid-column: 1 / -1; grid-row: 1; }
+  .body-play > .head .head-title.is-lead { font-size: var(--fs-head); }
+  .body-play > .live { grid-column: 1 / -1; grid-row: 2; align-self: center; }
+  .body-play > .live-stats { grid-column: 1 / -1; grid-row: 3; align-self: end; }
+  .body-play > .judges { display: none; }
+  .body-play .live-stats { grid-template-columns: 1fr 1fr auto auto; column-gap: var(--s5); }
+  .body-play .hp {
+    width: clamp(8px, 2.4vh, 12px);
+    min-height: 0;
+    height: clamp(28px, 8vh, 48px);
+    align-self: center;
+    margin-top: var(--s1);
+  }
 
-  /* select: header / (duo | gauge) / attrs / ladder / (nothing) */
-  .page-select .duo { grid-column: 1; grid-row: 2; }
-  .page-select .gauge { grid-column: 2; grid-row: 2 / span 2; align-self: stretch; }
-  .page-select .attrs { grid-row: 3; }
-  .page-select .ladder { grid-column: 1 / -1; grid-row: 4; }
-
-  /* play: header / score / (readout | judges) */
-  .page-play .score-strip { grid-column: 1 / -1; grid-row: 2; }
-  .page-play .readout { grid-column: 1; grid-row: 3; align-self: start; }
-  .page-play .judges { grid-column: 2; grid-row: 3; align-self: start; }
-
-  /* results: header / (verdict | readout) / (- | judges) */
-  .page-results .verdict { grid-column: 1; grid-row: 2 / span 2; align-self: center; }
-  .page-results .readout { grid-column: 2; grid-row: 2; align-self: start; }
-  .page-results .judges { grid-column: 2; grid-row: 3; align-self: start; }
-
-  /* home: header / gauge / selected map */
-  .page-home .gauge { grid-column: 1 / -1; grid-row: 2; }
-  .page-home .is-compact { grid-column: 1 / -1; grid-row: 3; }
-  .page-home .chips-row { grid-row: 4; }
+  /* ── results: grade occupies the left two thirds, figures to its right ─
+   * 812×375 works out to three columns; the grade spans the first two and the
+   * score and the framed block stack in the third. */
+  .body-results {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    column-gap: var(--s4);
+    row-gap: var(--s3);
+    align-content: center;
+    min-height: 0;
+  }
+  .body-results > .head.is-full { grid-column: 1 / -1; grid-row: 1; }
+  .body-results > .verdict-grade {
+    grid-column: 1 / span 2;
+    grid-row: 2 / span 2;
+    font-size: clamp(96px, 34vh, 176px);
+    align-self: stretch;
+  }
+  .body-results > .verdict-score { grid-column: 3; grid-row: 2; align-self: start; }
+  .body-results > .frame {
+    grid-column: 3;
+    grid-row: 3;
+    grid-template-columns: 1fr;
+    row-gap: 0;
+    padding: var(--s2) var(--s3);
+    align-self: start;
+  }
+  .body-results > .frame .stat { padding: var(--s2) 0 0; border-left: 0; border-top: 1px solid var(--hair); }
+  .body-results > .frame .stat:first-child { padding-top: 0; border-top: 0; }
+  .body-results > .frame .stat b { font-size: var(--fs-lg); }
+  .body-results > .frame .stat i { margin-top: 2px; }
+  .body-results > .judges { display: none; }
+  .page-results .verdict-value { font-size: clamp(40px, 12.6vh, 66px); margin: var(--s1) 0; }
 }
+
