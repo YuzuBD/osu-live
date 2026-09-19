@@ -944,24 +944,42 @@ def _read_beatmap(process: Process, pattern_base: int) -> BeatmapInfo:
     if not beatmap:
         return BeatmapInfo()
     read_string = process.read_csharp_string
-    return BeatmapInfo(
-        checksum=read_string(process.read_u32(beatmap + 0x6C)),
-        filename=read_string(process.read_u32(beatmap + 0x90)),
-        folder=read_string(process.read_u32(beatmap + 0x78)),
-        background=read_string(process.read_u32(beatmap + 0x68)),
-        artist=read_string(process.read_u32(beatmap + 0x18)),
-        title=read_string(process.read_u32(beatmap + 0x24)),
-        difficulty=read_string(process.read_u32(beatmap + 0xAC)),
-        creator=read_string(process.read_u32(beatmap + 0x7C)),
-        ar=process.read_f32(beatmap + 0x2C),
-        cs=process.read_f32(beatmap + 0x30),
-        hp=process.read_f32(beatmap + 0x34),
-        od=process.read_f32(beatmap + 0x38),
-        map_id=process.read_i32(beatmap + 0xC8),
-        set_id=process.read_i32(beatmap + 0xCC),
-        object_count=process.read_i32(beatmap + 0xF8),
-        ranked_status=process.read_i32(beatmap + 0x12C),
-    )
+    try:
+        info = BeatmapInfo(
+            checksum=read_string(process.read_u32(beatmap + 0x6C)),
+            filename=read_string(process.read_u32(beatmap + 0x90)),
+            folder=read_string(process.read_u32(beatmap + 0x78)),
+            background=read_string(process.read_u32(beatmap + 0x68)),
+            artist=read_string(process.read_u32(beatmap + 0x18)),
+            title=read_string(process.read_u32(beatmap + 0x24)),
+            difficulty=read_string(process.read_u32(beatmap + 0xAC)),
+            creator=read_string(process.read_u32(beatmap + 0x7C)),
+            ar=process.read_f32(beatmap + 0x2C),
+            cs=process.read_f32(beatmap + 0x30),
+            hp=process.read_f32(beatmap + 0x34),
+            od=process.read_f32(beatmap + 0x38),
+            map_id=process.read_i32(beatmap + 0xC8),
+            set_id=process.read_i32(beatmap + 0xCC),
+            object_count=process.read_i32(beatmap + 0xF8),
+            ranked_status=process.read_i32(beatmap + 0x12C),
+        )
+    except MemoryError_ as exc:
+        # Any single field failing means the whole record is suspect, and a
+        # partially-read beatmap is worse than none: it would put a real title
+        # next to a garbage object count.
+        _note_failure(f"beatmap: {exc}")
+        return BeatmapInfo()
+    # Last line against a *recycled* base whose fields happen to be readable but
+    # meaningless. Every real beatmap carries an MD5, so anything that is not a
+    # 32-character hex digest did not come from a beatmap object.
+    if not _is_md5(info.checksum):
+        _note_failure(f"beatmap: checksum not an MD5 ({info.checksum[:24]!r})")
+        return BeatmapInfo()
+    return info
+
+
+def _is_md5(value: str) -> bool:
+    return len(value) == 32 and all(c in "0123456789abcdef" for c in value.lower())
 
 
 def _read_hits(process: Process, score_base: int) -> HitCounts:

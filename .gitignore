@@ -5,3 +5,4 @@ __pycache__/
 
 .osu_live.log
 .osu_live.prev.log
+.osu_live.*.log

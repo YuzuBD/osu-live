@@ -155,6 +155,128 @@ def test_beatmap_recycled_pointer_is_not_a_crash():
     check("degraded, no exception", (info.filename, info.title), ("", ""))
 
 
+class RecycledBeatmap:
+    """A freed beatmap page whose fields are readable but meaningless.
+
+    This is the shape that reached the log as
+    ``degraded beatmap: implausible C# string length 33353``: the object was
+    gone, the slot held something else, and the string pointer read out of it
+    led to data that was not a .NET string.
+    """
+
+    def __init__(self, bad_length=33353, digest="not-a-real-checksum-at-all-xx"):
+        self.bad_length = bad_length
+        self.digest = digest
+        # Only the checksum's string object reports a sane length, so a valid
+        # digest can be read while the other fields still look like garbage.
+        self.checksum_pointer = 0x3000
+
+    def read_u32(self, address):
+        if address == 0x1000 - 0xC:
+            return 0x2000           # the object pointer resolves ...
+        if address == 0x2000 + 0x6C:
+            return self.checksum_pointer
+        if address in (0x2000 + 0x90, 0x2000 + 0x78, 0x2000 + 0x68,
+                       0x2000 + 0x18, 0x2000 + 0x24, 0x2000 + 0xAC, 0x2000 + 0x7C):
+            return 0x4000           # ... other string pointers are readable ...
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    def read_i32(self, address):
+        if address == self.checksum_pointer + 0x4:
+            return len(self.digest) if self.digest else self.bad_length
+        if address == 0x4000 + 0x4:
+            return self.bad_length   # ... and their "length" is nonsense
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    def read_ptr(self, address):
+        return self.read_u32(address)
+
+    def read_ptr_ptr(self, address):
+        return self.read_u32(self.read_u32(address))
+
+    def read_f32(self, address):
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    def read_csharp_string(self, address):
+        length = self.read_i32(address + 0x4)
+        if length < 0 or length > 512:
+            raise MemoryError_(f"implausible C# string length {length}")
+        return self.digest if address == self.checksum_pointer else ""
+
+
+def test_recycled_beatmap_yields_no_partial_record():
+    """A half-readable beatmap must not be published with real-looking fields."""
+    r = bare_reader()
+    r._process = RecycledBeatmap()
+    r.pattern = lambda name: 0x1000  # type: ignore[assignment]
+    info = r._cached_beatmap(0x1000)
+    check("no partial record", (info.title, info.artist, info.object_count), ("", "", 0))
+
+
+class ChecksumOnlyBeatmap:
+    """Only the checksum resolves, so the MD5 guard is what decides.
+
+    Every other field fails, which is the point: the all-or-nothing read would
+    otherwise reject the record before the digest is ever examined.
+    """
+
+    def __init__(self, digest):
+        self.digest = digest
+
+    def _resolve(self, address):
+        if address == 0x1000 - 0xC:
+            return 0x2000
+        if address == 0x2000 + 0x6C:
+            return 0x3000
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    def read_u32(self, address):
+        return self._resolve(address)
+
+    def read_ptr(self, address):
+        return self._resolve(address)
+
+    def read_ptr_ptr(self, address):
+        return self._resolve(self._resolve(address))
+
+    def read_i32(self, address):
+        if address == 0x3000 + 0x4:
+            return len(self.digest)
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    def read_f32(self, address):
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    def read_csharp_string(self, address):
+        if address == 0x3000:
+            return self.digest
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+
+def test_checksum_guard():
+    """Fields can be readable and still meaningless; the digest catches that.
+
+    Tested on the guard directly, because the all-or-nothing read in
+    ``_read_beatmap`` rejects a record with any failing field *before* the
+    digest is examined -- so a fake with only a checksum never gets that far.
+    """
+    check("real md5 accepted", R._is_md5("4ce502e521a7342276ad821bf967d6bb"), True)
+    check("uppercase accepted", R._is_md5("4CE502E521A7342276AD821BF967D6BB"), True)
+    check("wrong length rejected", R._is_md5("4ce502e521a7342276ad821bf967d6b"), False)
+    check("non-hex rejected", R._is_md5("zzzz-not-a-digest-zzzz-not-a-dig"), False)
+    check("empty rejected", R._is_md5(""), False)
+    check("long garbage rejected", R._is_md5("x" * 512), False)
+
+
+def test_partial_record_is_rejected_before_the_digest():
+    """The digest is a backstop; a failing field already ends the read."""
+    r = bare_reader()
+    r._process = ChecksumOnlyBeatmap("4ce502e521a7342276ad821bf967d6bb")
+    r.pattern = lambda name: 0x1000  # type: ignore[assignment]
+    # The checksum itself would pass, but the record is incomplete.
+    check("incomplete record dropped", r._cached_beatmap(0x1000).checksum, "")
+
+
 def test_read_once_then_cleared():
     """A degraded field is reported once per run of failures, not per frame."""
     reported = []
@@ -193,9 +315,13 @@ if __name__ == "__main__":
         test_mods_never_raise,
         test_beatmap_null_pointer_returns_empty,
         test_beatmap_recycled_pointer_is_not_a_crash,
+        test_recycled_beatmap_yields_no_partial_record,
+        test_checksum_guard,
+        test_partial_record_is_rejected_before_the_digest,
         test_read_once_then_cleared,
     ]:
         print(f"\n{fn.__name__}")
         fn()
     print(f"\nfailures: {failures}")
     sys.exit(1 if failures else 0)
+
