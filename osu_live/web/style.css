@@ -105,20 +105,39 @@ html, body {
 
 body { height: 100vh; height: 100dvh; }
 
-/* ── backdrop ─────────────────────────────────────────────────────────── */
+/* ── backdrop ─────────────────────────────────────────────────────────────
+ * Two layers, cross-faded.
+ *
+ * A single element with its `background-image` swapped shows whatever is
+ * behind it while the new file is still downloading, which on a phone is
+ * plainly visible as a flash. The new art is fetched into an Image first and
+ * only then painted into the hidden layer, which is faded up over the old one,
+ * so the swap is a dissolve between two loaded bitmaps. */
 
 .backdrop {
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: var(--bg) center / cover;
+  background: var(--bg);
+  /* The artwork is ambience, never something to read against: the scrim gets
+   * heavier than an earlier version so type sits on a predictable value. */
   filter: blur(4px) brightness(.42) saturate(1.5);
   transform: scale(1.14);
   transition: filter .6s ease;
 }
 
-/* The artwork is ambience, never something to read against: the scrim gets
- * heavier than the old version so type sits on a predictable value. */
+.bd {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat;
+  opacity: 0;
+  transition: opacity .5s ease;
+  will-change: opacity;
+}
+
+.bd.on { opacity: 1; }
+
+/* The artwork retreats further while a map is being played. */
 body[data-page="play"] .backdrop { filter: blur(26px) brightness(.24) saturate(1.1); }
 body[data-page="select"] .backdrop { filter: blur(2px) brightness(.40) saturate(1.45); }
 body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) saturate(1.5); }
@@ -261,6 +280,7 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: opacity .14s ease;
 }
 
 /* The lead heading of a screen. The select title is the one string worth
@@ -290,6 +310,20 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 }
 
 .page-select .head-sub { color: var(--accent-hi); font-weight: 700; }
+
+/* A map change settles its identity with a short fade rather than snapping.
+ * The class is re-added by restartFade(); the keyframes end at opacity 1 so an
+ * interrupted animation always lands fully visible. */
+.is-swapping { animation: swap-fade .26s ease both; }
+
+@keyframes swap-fade {
+  0% { opacity: 0; transform: translateY(2px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-swapping { animation: none; }
+}
 
 /* ── who: the account line ────────────────────────────────────────────── */
 
@@ -444,6 +478,14 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 
 .stars { display: flex; align-items: center; gap: var(--s4); min-width: 0; }
 
+/* Registered so the arc can be animated; see the note on --w above. Placed
+ * before it in the file only for readability -- registration is global. */
+@property --p {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .stars-ring {
   position: relative;
   flex-shrink: 0;
@@ -465,6 +507,7 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
       var(--accent) calc(var(--p, 0) * 1turn),
       rgba(255, 255, 255, .09) 0);
   box-shadow: 0 0 26px rgba(255, 95, 162, .16);
+  transition: --p .5s ease;
 }
 
 .stars-ring > span { font-size: var(--fs-lg); line-height: 1; }
@@ -535,6 +578,14 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
   overflow: hidden;
 }
 
+/* Registered so the ladder's fill can be animated: an unregistered custom
+ * property is a string, and strings do not interpolate. */
+@property --w {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .rung {
   display: flex;
   flex-direction: column;
@@ -546,6 +597,7 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
       rgba(255, 95, 162, calc(var(--w, 0) * .13)) 0%,
       rgba(11, 10, 13, .55) 100%);
   text-align: center;
+  transition: --w .45s ease;
 }
 
 .rung b {
@@ -1062,6 +1114,7 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
   .body-results > .judges { display: none; }
   .page-results .verdict-value { font-size: clamp(38px, 12vh, 62px); margin: var(--s1) 0; }
 }
+
 
 
 

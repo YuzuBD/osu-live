@@ -72,9 +72,11 @@ const OFFLINE_GRACE_MS = 1200;
 let lastPlayScore = null;   // newest finished score seen after a play
 let shownResults = null;    // the score currently on the results screen
 let lastPage = '';
-let lastBackground = '';
 let offlineTimer = null;    // defers the "no client" overlay, see render()
 let offlineReason = '';     // most recent error, shown if the overlay does open
+//: Which map the select screen is currently showing, so its identity can be
+//: crossfaded when the selection changes and left alone otherwise.
+let selectMapKey = '';
 /* Last non-empty player block and beatmap. osu! frees the profile and beatmap
  * objects on the frame it changes screens, so a read can come back empty while
  * the map is still loaded. Rendering that emptiness puts "未登录" and a blank
@@ -94,6 +96,131 @@ function keepFilled(previous, incoming) {
 
 /* ─────────────────────────────────────────────────────────── utilities */
 
+/* Motion is decoration here, never the only carrier of a value: every tween
+ * below ends on the exact number it was given, and switching it off only
+ * removes the travel. Also off wherever there is no rAF to drive it, which
+ * makes the figures settle synchronously. */
+const MOTION = !(
+  typeof requestAnimationFrame !== 'function'
+  || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+);
+
+const TWEEN_MS = 420;
+
+/** Ease-out: fast off the mark, settling onto the value. */
+function easeOut(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+/* One rAF loop for every animation on the page rather than one per animated
+ * element; the map select screen runs a tween per pp figure.
+ *
+ * A figure must never be left showing a value it never reached, so the loop
+ * also carries a fallback: if frames stop arriving, a timer settles every
+ * animation still in flight onto its target. rAF is paused in background tabs
+ * and does not fire at all in some embedded contexts, and without this the
+ * last painted frame -- part way to the target -- would simply stay there. */
+const running = new Map();
+let rafId = 0;
+let fallbackId = 0;
+
+function settleAll() {
+  for (const [key, anim] of running) {
+    anim.step(anim.to);
+    running.delete(key);
+  }
+  if (fallbackId) { clearTimeout(fallbackId); fallbackId = 0; }
+}
+
+function tickAnimations(now) {
+  for (const [key, anim] of running) {
+    const t = anim.duration > 0 ? Math.min(1, (now - anim.start) / anim.duration) : 1;
+    anim.step(anim.from + (anim.to - anim.from) * easeOut(t));
+    if (t >= 1) running.delete(key);
+  }
+  if (running.size) {
+    rafId = requestAnimationFrame(tickAnimations);
+  } else {
+    rafId = 0;
+    if (fallbackId) { clearTimeout(fallbackId); fallbackId = 0; }
+  }
+}
+
+function scheduleFallback(ms) {
+  if (fallbackId) clearTimeout(fallbackId);
+  fallbackId = setTimeout(settleAll, ms + 120);
+}
+
+/** Animate a number towards `to`, reporting each frame to `apply`.
+ *
+ * The current value is interpolated from, not the last one painted, so a new
+ * target arriving mid-flight (song select recalculates pp as you scroll)
+ * turns into a continuation rather than a jump back to the start.
+ */
+function tween(key, to, apply, duration = TWEEN_MS) {
+  if (!Number.isFinite(to)) {
+    running.delete(key);
+    return;
+  }
+  const existing = running.get(key);
+  if (!MOTION || duration <= 0) {
+    running.delete(key);
+    apply(to);
+    return;
+  }
+  const from = existing ? existing.value : readTweened(key, apply);
+  if (Math.abs(to - from) < 0.005) {
+    running.delete(key);
+    apply(to);
+    return;
+  }
+  const anim = {
+    from,
+    to,
+    value: from,
+    start: performance.now(),
+    duration,
+    step(v) {
+      anim.value = v;
+      apply(v);
+    },
+  };
+  running.set(key, anim);
+  if (!rafId) rafId = requestAnimationFrame(tickAnimations);
+  scheduleFallback(duration);
+}
+
+/** Where a tween that is not running should start from: the value on screen. */
+const tweenSeed = new Map();
+function readTweened(key, apply) {
+  return tweenSeed.has(key) ? tweenSeed.get(key) : 0;
+}
+function seedTween(key, value) {
+  tweenSeed.set(key, value);
+}
+
+/** Animate a text figure, formatting every frame so the digits roll. */
+function tweenNumber(key, to, el, format) {
+  if (to === null || to === undefined || !Number.isFinite(to) || to <= 0) {
+    running.delete(key);
+    seedTween(key, 0);
+    setText(el, '—');
+    return;
+  }
+  tween(key, to, (v) => {
+    seedTween(key, v);
+    setText(el, format(v));
+  });
+}
+
+/** Drive a registered custom property; the transition in the stylesheet does
+ * the interpolating, so a single assignment is enough. */
+function tweenTo(el, property, to) {
+  if (!el) return;
+  const clamped = Math.max(0, Math.min(1, Number(to) || 0));
+  el.style.setProperty(property, clamped.toFixed(3));
+}
+
 function setText(el, value) {
   if (!el) return;
   const text = value === null || value === undefined ? '—' : String(value);
@@ -104,13 +231,6 @@ function setWidth(el, fraction) {
   if (!el) return;
   const pct = Math.max(0, Math.min(100, (Number(fraction) || 0) * 100));
   el.style.width = `${pct.toFixed(1)}%`;
-}
-
-/** Drive a `.ring`'s conic gradient. `fraction` may exceed 1 for star rings. */
-function setRing(el, fraction) {
-  if (!el) return;
-  const clamped = Math.max(0, Math.min(1, Number(fraction) || 0));
-  el.style.setProperty('--p', clamped.toFixed(3));
 }
 
 function fmtClock(ms) {
@@ -204,16 +324,62 @@ function fitScoreToWidth(el, { min = 18, maxScale = 1 } = {}) {
   return scale;
 }
 
-/** Point the backdrop at the map's artwork, re-requesting only when it changes. */
+/** Point the backdrop at the map's artwork.
+ *
+ * The new image is fetched into an `Image` before anything is painted, and
+ * only then cross-faded in over the previous one. Swapping `background-image`
+ * directly shows the layer's backdrop colour for as long as the download
+ * takes, which on a phone over Wi-Fi is a plainly visible flash -- and these
+ * are full-size beatmap backgrounds, so it is not a short one.
+ */
+const backdropLayers = Array.from(document.querySelectorAll('#backdrop .bd'));
+let backdropTop = 0;
+let backdropKey = '';
+let backdropToken = 0;
+
+function applyBackdrop(front, url) {
+  front.style.backgroundImage = url ? `url("${url}")` : '';
+  for (let i = 0; i < backdropLayers.length; i++) {
+    backdropLayers[i].classList.toggle('on', i === backdropTop);
+  }
+}
+
 function setBackdrop(beatmap) {
   const folder = beatmap && beatmap.folder;
   const background = beatmap && beatmap.background;
   const key = folder && background ? `${folder}/${background}` : '';
-  if (key === lastBackground) return;
-  lastBackground = key;
-  els.backdrop.style.backgroundImage = key
-    ? `url("/api/background?v=${encodeURIComponent(key)}")`
-    : '';
+  if (key === backdropKey) return;
+  backdropKey = key;
+
+  if (!key) {
+    backdropTop = 0;
+    applyBackdrop(backdropLayers[0], '');
+    return;
+  }
+
+  const url = `/api/background?v=${encodeURIComponent(key)}`;
+  const token = ++backdropToken;
+  const front = backdropLayers[1 - backdropTop];
+  const show = () => {
+    // A newer map was selected while this one was loading; drop this result
+    // rather than flashing art for a map that is no longer selected.
+    if (token !== backdropToken) return;
+    backdropTop = 1 - backdropTop;
+    applyBackdrop(front, url);
+  };
+
+  // Without an Image constructor there is nothing to preload into; painting
+  // directly is the old behaviour, which is worse but still correct.
+  if (typeof Image !== 'function') { show(); return; }
+
+  const image = new Image();
+  image.onload = show;
+  // If the fetch fails the map's art is simply missing; showing nothing is
+  // better than leaving a half-painted layer behind.
+  image.onerror = () => {
+    if (token === backdropToken) applyBackdrop(backdropLayers[backdropTop], '');
+  };
+  image.src = url;
 }
 
 /* ─────────────────────────────────────────────────────── page selection */
@@ -296,53 +462,119 @@ function renderHome(state) {
   setText(els['home-total'], fmtClock(state.audio_length || 0));
 }
 
+/* ── shared element factories ─────────────────────────────────────────────
+ * These exist so a value can be *updated* rather than the markup rewritten.
+ * Rebuilding the ladder on every state would throw away the elements the CSS
+ * transitions are animating, and reset any tween in flight. */
+
+function modsInto(container, mods) {
+  if (!container) return;
+  const list = (mods && mods.array) || [];
+  const wanted = list.length ? list : null;
+  const current = container.dataset.rendered || '';
+
+  if (!wanted) {
+    if (current !== 'none') {
+      container.dataset.rendered = 'none';
+      container.innerHTML = '<span class="mod none">NoMod</span>';
+    }
+    return;
+  }
+  if (current === wanted.join(' ')) return;
+  container.dataset.rendered = wanted.join(' ');
+  container.innerHTML = wanted.map((m) => `<span class="mod">${escapeHtml(m)}</span>`).join('');
+}
+
+/** The pp ladder, keyed by accuracy. Rebuilt only when the accuracies change;
+ * otherwise the existing rungs are updated in place so their fill transitions. */
+function ladderInto(container, entries, best) {
+  if (!container) return;
+  const signature = entries.map(([acc]) => acc).join(',');
+  if (container.dataset.rendered !== signature) {
+    container.dataset.rendered = signature;
+    container.innerHTML = entries.map(([acc]) =>
+      `<div class="rung" data-acc="${acc}"><b>—</b><i>${acc}%</i></div>`
+    ).join('');
+  }
+  for (const [acc, value] of entries) {
+    const rung = container.querySelector(`.rung[data-acc="${acc}"]`);
+    if (!rung) continue;
+    const weight = best > 0 ? Math.max(0.12, Math.min(1, value / best)) : 0.5;
+    rung.style.setProperty('--w', weight.toFixed(3));
+    setText(rung.querySelector('b'), nf2.format(value));
+  }
+}
+
+/** Crossfade elements that have just been given new content.
+ *
+ * The text is written first and unconditionally -- a title must never be left
+ * blank waiting on a timer -- and the fade is a CSS animation restarted by
+ * re-adding a class. An earlier version wrote the text inside a setTimeout,
+ * which meant a throttled or never-run timer left the map name empty. */
+function restartFade(nodes) {
+  if (!MOTION || !nodes) return;
+  for (const el of nodes) {
+    if (!el) continue;
+    el.classList.remove('is-swapping');
+    // Reading this forces a style flush, so re-adding the class restarts the
+    // animation instead of being ignored as a no-op.
+    void el.offsetWidth;
+    el.classList.add('is-swapping');
+  }
+}
+
 function renderSelect(state) {
   const beatmap = state.beatmap || {};
   const pp = state.pp || {};
   const current = pp.current || {};
   const accList = pp.acc_list || {};
 
-  setText(els['sel-artist'], beatmap.artist || '—');
-  setText(els['sel-title'], beatmap.title || (beatmap.filename ? mapTitle(beatmap) : '未选择谱面'));
-  setText(els['sel-diff'], beatmap.difficulty ? `[${beatmap.difficulty}]` : '—');
-  setText(els['sel-mapper'], beatmap.creator || '未知');
+  const mapKey = `${beatmap.folder || ''}/${beatmap.filename || ''}`;
+  if (mapKey !== selectMapKey) {
+    selectMapKey = mapKey;
+    // The identity of the map swaps outright; the figures below roll to their
+    // new values, which reads as the data catching up to the title.
+    setText(els['sel-artist'], beatmap.artist || '—');
+    setText(els['sel-title'], beatmap.title || (beatmap.filename ? mapTitle(beatmap) : '未选择谱面'));
+    setText(els['sel-diff'], beatmap.difficulty ? `[${beatmap.difficulty}]` : '—');
+    setText(els['sel-mapper'], beatmap.creator || '未知');
+    setText(els['sel-objects'], beatmap.object_count ? nf.format(beatmap.object_count) : '—');
+    setText(els['sel-ar'], beatmap.ar ? nf2.format(beatmap.ar) : '—');
+    setText(els['sel-od'], beatmap.od ? nf2.format(beatmap.od) : '—');
+    setText(els['sel-cs'], beatmap.cs ? nf2.format(beatmap.cs) : '—');
+    setText(els['sel-hp'], beatmap.hp ? nf2.format(beatmap.hp) : '—');
+    restartFade([els['sel-artist'], els['sel-title'], els['sel-diff'], els['sel-mapper']]);
+    restartFade([els['sel-objects'], els['sel-ar'], els['sel-od'], els['sel-cs'], els['sel-hp']]);
+  }
 
-  // The ring encodes the star rating against a fixed 10★ ceiling: enough to
-  // read difficulty at a glance without pretending to be a progress value.
+  // The ring encodes the star rating against a fixed 10★ ceiling; its arc is
+  // driven by a registered property so it can animate.
   const stars = Number(current.stars) || 0;
-  setText(els['sel-stars'], stars ? nf2.format(stars) : '—');
-  setRing(els['sel-ring'], stars / 10);
-  els['sel-ring'].title = stars ? `${nf2.format(stars)} 星` : '';
+  tweenNumber('sel.stars', stars, els['sel-stars'], (v) => nf2.format(v));
+  tweenTo(els['sel-ring'], '--p', stars / 10);
+  if (els['sel-ring']) els['sel-ring'].title = stars ? `${nf2.format(stars)} 星` : '';
 
-  setText(els['sel-objects'], beatmap.object_count ? nf.format(beatmap.object_count) : '—');
-  setText(els['sel-ar'], beatmap.ar ? nf2.format(beatmap.ar) : '—');
-  setText(els['sel-od'], beatmap.od ? nf2.format(beatmap.od) : '—');
-  setText(els['sel-cs'], beatmap.cs ? nf2.format(beatmap.cs) : '—');
-  setText(els['sel-hp'], beatmap.hp ? nf2.format(beatmap.hp) : '—');
-
-  // A full-combo, 100% run of this map is the ceiling everything below is
-  // relative to.
+  // A full-combo, 100% run of this map is the ceiling everything is relative to.
   const best = pp.error ? 0 : ((pp.max || {}).pp || current.pp || 0);
-  setText(els['sel-maxpp'], best > 0 ? nf2.format(best) : '—');
-  setText(els['sel-pp-fc'], fmtPp((pp.max || {}).pp));
-  setText(els['sel-pp-99'], fmtPp(accList['99']));
-  setText(els['sel-pp-98'], fmtPp(accList['98']));
-  setText(els['sel-pp-95'], fmtPp(accList['95']));
+  tweenNumber('sel.maxpp', best, els['sel-maxpp'], (v) => nf2.format(v));
+  tweenNumber('sel.fc', Number((pp.max || {}).pp) || 0, els['sel-pp-fc'], (v) => nf2.format(v));
+  for (const acc of ['99', '98', '95']) {
+    const value = Number(accList[acc]) || 0;
+    const el = els[`sel-pp-${acc}`];
+    if (value > 0) tweenNumber(`sel.pp${acc}`, value, el, (v) => nf2.format(v));
+    else { running.delete(`sel.pp${acc}`); seedTween(`sel.pp${acc}`, 0); setText(el, '—'); }
+  }
 
-  // The pp ladder is where the picking actually happens, so every accuracy
-  // gets a bar. Fill is normalised against the 100% value: the 90% bar lands
-  // around half height, which reads as the drop-off it is.
+  // The pp ladder is where the picking actually happens, so every accuracy gets
+  // a bar. Fill is normalised against the 100% value: the 90% bar lands around
+  // half height, which reads as the drop-off it is.
   const entries = Object.entries(accList)
     .map(([acc, value]) => [Number(acc), Number(value)])
     .filter(([acc, value]) => Number.isFinite(acc) && Number.isFinite(value))
     .sort((a, b) => a[0] - b[0]);
-  els['sel-ladder'].innerHTML = entries.map(([acc, value]) => {
-    const weight = best > 0 ? Math.max(0.12, Math.min(1, value / best)) : 0.5;
-    return `<div class="rung" style="--w:${weight.toFixed(3)}">` +
-           `<b>${nf2.format(value)}</b><i>${acc}%</i></div>`;
-  }).join('');
+  ladderInto(els['sel-ladder'], entries, best);
 
-  els['sel-mods'].innerHTML = modsHtml(state.mods);
+  modsInto(els['sel-mods'], state.mods);
 
   setWidth(els['sel-fill'], state.progress);
   setText(els['sel-elapsed'], fmtClock(state.play_time || 0));
@@ -628,5 +860,13 @@ if (demo && ['home', 'select', 'play', 'results'].includes(demo)) {
   render(demoState(demo));
 } else {
   connect();
+}
+
+/* A handle for driving the overlay from the console or a test page. The
+ * animation work cannot be checked from a screenshot -- a still frame says
+ * nothing about whether a value travelled or jumped -- so the entry point is
+ * exposed deliberately, alongside the state it renders from. */
+if (typeof window !== 'undefined') {
+  window.osuLive = { render, demoState, els, MOTION };
 }
 
