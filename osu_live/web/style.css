@@ -84,6 +84,22 @@
 
   --shadow: 0 2px 12px rgba(0, 0, 0, .45);
   --tsh: 0 1px 3px rgba(0, 0, 0, .8), 0 2px 12px rgba(0, 0, 0, .45);
+
+  /* ── screen transition ──────────────────────────────────────────────── */
+  /* The exit runs first and finishes quickly; the entry follows it block by
+   * block. `--pg-rise` is the distance a block travels, and `--pg-dir` is set
+   * to 1 or -1 by showPage() so a forward step rises and a backward one
+   * descends. Keep these in step with PAGE_LEAVE_MS in app.js: that constant
+   * is when the outgoing screen stops being laid out. */
+  --pg-out: 130ms;
+  --pg-in: 250ms;
+  /* Each block after the first starts one step later. The first starts at
+   * once: holding it back too left the middle of the screen empty while the
+   * outgoing blocks were still on their way out, which reads as a drop-out
+   * rather than a hand-over. */
+  --pg-step: 40ms;
+  --pg-rise: 14px;
+  --pg-ease: cubic-bezier(.22, .68, .24, 1);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -183,6 +199,79 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 }
 
 .page.active { display: flex; }
+
+/* ── switching screens ───────────────────────────────────────────────────
+ * The four screens share a shell: the identity band, the status rail and the
+ * progress footer sit in the same place on all of them, and three of the four
+ * carry the very same map title in that band. So the shell is left alone and
+ * only the middle of the screen is animated. Cross-fading the shell along with
+ * the content made the title and the clock blink on every switch, and moving
+ * it doubled the title against its own ghost -- the band is absolutely
+ * positioned, so a transform on any ancestor drags it too.
+ *
+ * `display: none` cannot be animated from, so a screen on its way out is held
+ * laid out by `.leaving` for the length of its exit; `.active` sits above it
+ * while both are displayed. showPage() is what removes `.leaving` again.
+ */
+
+.page.active { z-index: 2; }
+.page.leaving { display: flex; z-index: 1; pointer-events: none; }
+
+/* Two or three blocks per screen, in the order they should be read. The
+ * blocks are the ones specific to a screen: everything else is the shell. */
+.page.active > .body > .account,
+.page.active > .body > .rail-stats,
+.page.active > .body > .live,
+.page.active > .body > .live-stats,
+.page.active > .body > .verdict-grade,
+.page.active > .body > .verdict-side,
+.page.active > .body > .sel-left,
+.page.active > .body > .sel-right > .stars,
+.page.active > .body > .sel-right > .attrs,
+.page.active > .body > .sel-right > .chips {
+  animation: pg-in var(--pg-in) var(--pg-ease) both;
+}
+
+.page.leaving > .body > .account,
+.page.leaving > .body > .rail-stats,
+.page.leaving > .body > .live,
+.page.leaving > .body > .live-stats,
+.page.leaving > .body > .verdict-grade,
+.page.leaving > .body > .verdict-side,
+.page.leaving > .body > .sel-left,
+.page.leaving > .body > .sel-right > .stars,
+.page.leaving > .body > .sel-right > .attrs,
+.page.leaving > .body > .sel-right > .chips {
+  animation: pg-out var(--pg-out) var(--pg-ease) both;
+}
+
+/* The stagger. On the select screen the title keeps its own band, so the
+ * right-hand column enters as three separate figures rather than one slab. */
+.page.active > .body > .rail-stats,
+.page.active > .body > .live-stats,
+.page.active > .body > .verdict-side,
+.page.active > .body > .sel-right > .stars { animation-delay: var(--pg-step); }
+.page.active > .body > .sel-right > .attrs { animation-delay: calc(var(--pg-step) * 2); }
+.page.active > .body > .sel-right > .chips { animation-delay: calc(var(--pg-step) * 3); }
+
+@keyframes pg-in {
+  from { opacity: 0; transform: translate3d(0, calc(var(--pg-dir, 1) * var(--pg-rise)), 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* The outgoing block continues the travel rather than reversing it, so a
+ * forward step reads as one movement through the screen. */
+@keyframes pg-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to   { opacity: 0; transform: translate3d(0, calc(var(--pg-dir, 1) * var(--pg-rise) * -.7), 0); }
+}
+
+/* The scripting flag covers the normal case; this catches a system setting
+ * changed while the page is already open. */
+@media (prefers-reduced-motion: reduce) {
+  .page.active > .body > *,
+  .page.leaving > .body > * { animation: none; }
+}
 
 /* The content group. `margin: auto 0` centres it and degrades to a
  * top-aligned scrollable column when it is taller than the screen. */
@@ -1096,15 +1185,19 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
     font-size: clamp(104px, 40vh, 210px);
   }
   .body-results > .verdict-side { grid-column: 2; grid-row: 1; }
-  .body-results > .frame {
+  /* Scoped with a descendant combinator, not `>`: the frame is the second
+   * child of `.verdict-side`, not of the body. Written as `.body-results >
+   * .frame` these five rules matched nothing at all and the frame quietly kept
+   * its portrait padding and type sizes in landscape. */
+  .body-results .frame {
     grid-template-columns: repeat(3, 1fr);
     row-gap: 0;
     padding: var(--s2) var(--s3);
   }
-  .body-results > .frame .stat { padding: 0 0 0 var(--s3); border-top: 0; border-left: 1px solid var(--hair); }
-  .body-results > .frame .stat:first-child { padding-left: 0; border-left: 0; }
-  .body-results > .frame .stat b { font-size: var(--fs-md); }
-  .body-results > .frame .stat i { margin-top: 2px; }
+  .body-results .frame .stat { padding: 0 0 0 var(--s3); border-top: 0; border-left: 1px solid var(--hair); }
+  .body-results .frame .stat:first-child { padding-left: 0; border-left: 0; }
+  .body-results .frame .stat b { font-size: var(--fs-md); }
+  .body-results .frame .stat i { margin-top: 2px; }
   .body-results > .judges { display: none; }
   .page-results .verdict-value { font-size: clamp(38px, 12vh, 62px); margin: var(--s1) 0; }
 }

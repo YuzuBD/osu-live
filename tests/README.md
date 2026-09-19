@@ -6,6 +6,7 @@
 python tests/test_reader.py     # 读取器：内存被释放的各种情况、命名规则
 node  tests/verify_ui.js        # 前端：id 覆盖、四条渲染路径、产出值
 node  tests/test_flicker.js     # 空数据块不能把面板清空（切屏时的闪烁）
+node  tests/test_pages.js       # 页面切换：谁在显示、谁还在退场、被打断怎么办
 node  tests/check_ids.js        # app.js 里像 id 的字符串必须真的存在
 ```
 
@@ -16,6 +17,7 @@ node  tests/check_ids.js        # app.js 里像 id 的字符串必须真的存�
 | `test_reader.py` | 对象被 osu! 释放后指针变野。包括空指针、被回收的指针、半可读的记录、以及用 MD5 校验挡"可读但无意义"的垃圾。全部用假进程驱动，不需要游戏。 |
 | `verify_ui.js` | 每个 `els[...]` 引用的 id 都必须在 `index.html` 里存在——**这个 bug 让三个页面整块空白过两次**。另外验证四条渲染路径都能跑完，以及它们产出的值。 |
 | `test_flicker.js` | osu! 切屏那一帧会把对象释放掉，读回来是空的。验证空块**不会**把面板清空、不会把页面踢回主页。 |
+| `test_pages.js` | 切屏动画的账目：退场中的页面必须继续参与布局（`display: none` 起不了动画），退完必须被放掉，**连切两屏时中间那屏不能留在屏幕上**，退回一个还在退场的页面要取消它自己的退场。另外校验 JS 里的 `PAGE_LEAVE_MS` 长于 CSS 里的 `--pg-out`——这两个数分居两个文件，只能靠测试绑住。 |
 | `check_ids.js` | 单独跑很快，专门查 id 漂移。 |
 
 ## 环境假设
@@ -23,13 +25,23 @@ node  tests/check_ids.js        # app.js 里像 id 的字符串必须真的存�
 - 脚本自己推算仓库路径（`tests/../osu_live/web/`），换目录 checkout 也能跑
 - 没有 `requestAnimationFrame` 时动画补间会**同步落到目标值**，所以断言读到的是最终值而不是中间帧
 - `verify_ui.js` / `test_flicker.js` 用 DOM 桩驱动 `app.js`，不是真浏览器。真浏览器里的排版、动画、滚动要另外验
+- `test_pages.js` 用 `vm` 起两个独立上下文，分别在"有 rAF"和"没有 rAF"下跑一遍 `app.js`。它只看类名和计时器，看不到动画本身
 
 ## 真浏览器验证
 
-排版和动画没法靠桩验证。之前用的办法：
+排版和动画没法靠桩验证。`osu_live/web/diag/` 下有两个常驻页面，浏览器打开就能看：
 
-- **截图**：headless chromium 加 `--window-size=812,375`（iPhone 13 mini 横屏）
-- **几何探针**：同源 iframe 里量每个区块的盒子，查重叠和越界。探针是临时文件，用完删了——需要时重建
-- **动画采样**：`window.osuLive.render()` 暴露出来专门给这个用（静态截图看不出值是滚动过去的还是跳过去的）
+- **`preview.html`** —— 四个界面并排放在 812×375 的 iframe 里（iPhone 13 mini 横屏），
+  用来对排版。取哪一块的截图都行。
+- **`anim-probe.html`** —— 在 iframe 里真的调 `window.osuLive.render()` 切屏，然后
+  **采样浏览器算出来的 opacity 和 transform**。截图看不出一个值是滚过去的还是跳过去的，
+  这个能。它会打印前进/后退各自的起始位移和错峰间隔。
 
-注意 headless 环境里 `requestAnimationFrame` **不会触发**，所以动画测到的是兜底路径。真机手感只能真机看。
+两个都只用于**看排版和动画**。诊断"横屏首屏崩溃"那类问题不能这样测——iframe 一加载就完成
+首次布局，必须用 `diag/` 里那些独立的变体页。
+
+`window.osuLive` 是特意暴露的，就是给这种验证用的。
+
+CSS 动画在 iframe 里确实会跑（本次实测：前进从 +12.1px 起、后退从 −13.0px 起）。
+**没有测的是** rAF 回调在无头 iframe 里是否触发——所以 JS 补间那部分仍然只按兜底路径验证过。
+真机手感、刘海、OLED 对比度只能真机看。

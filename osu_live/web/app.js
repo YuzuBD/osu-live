@@ -467,14 +467,57 @@ function pickPage(state) {
   return 'home';
 }
 
+/* The order the four screens appear in as a play runs, so showPage() can tell
+ * a step forward from a step back and aim the movement accordingly. */
+const PAGE_ORDER = ['home', 'select', 'play', 'results'];
+
+/* How long an outgoing screen is kept laid out. `display: none` cannot be
+ * animated from, so the exit needs the element to still exist; this is the
+ * longest exit in the stylesheet (--pg-out, plus room for a late frame), and
+ * has to be kept in step with it. */
+const PAGE_LEAVE_MS = 190;
+
+/* One pending release per screen, so a screen that comes back before its exit
+ * has finished is not dropped by its own stale timer. */
+const leaveTimers = new Map();
+
 function showPage(page) {
   if (page === lastPage) return;
-  for (const p of ['home', 'select', 'play', 'results']) {
-    els[`page-${p}`].classList.toggle('active', p === page);
+  const previous = lastPage;
+  lastPage = page;
+
+  // Forward through the game's own order rises; going back descends. Read by
+  // both keyframes, so the outgoing block continues the same travel.
+  const dir = PAGE_ORDER.indexOf(page) > PAGE_ORDER.indexOf(previous) ? 1 : -1;
+  const shell = document.querySelector('#shell');
+  if (shell) shell.style.setProperty('--pg-dir', String(dir));
+
+  for (const p of PAGE_ORDER) {
+    const el = els[`page-${p}`];
+    if (!el) continue;
+    const timer = leaveTimers.get(p);
+    if (timer) { clearTimeout(timer); leaveTimers.delete(p); }
+    // Reactivating a screen cancels its departure: leaving the class on would
+    // keep the exit animation winning over the entry one.
+    el.classList.remove('leaving');
+    el.classList.toggle('active', p === page);
   }
+
+  /* The screen just left stays displayed for the length of its exit. It is
+   * only ever the middle of it that is still visible -- the shell it shares
+   * with the incoming screen is identical and sits under it. Without motion
+   * there is nothing to wait for, so it is dropped at once. */
+  const gone = MOTION ? els[`page-${previous}`] : null;
+  if (gone) {
+    gone.classList.add('leaving');
+    leaveTimers.set(previous, setTimeout(() => {
+      leaveTimers.delete(previous);
+      gone.classList.remove('leaving');
+    }, PAGE_LEAVE_MS));
+  }
+
   // Drives per-page styling, e.g. how strongly the artwork backdrop is blurred.
   document.body.dataset.page = page;
-  lastPage = page;
 }
 
 /* ───────────────────────────────────────────────────────────── rendering */
