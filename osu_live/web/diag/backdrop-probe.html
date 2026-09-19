@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>backdrop probe</title>
+<style>
+  body { margin: 0; background: #15151a; color: #888; font: 11px/1.4 system-ui, sans-serif; }
+  figure { margin: 0; padding: 4px 8px 8px; }
+  figcaption { padding-bottom: 3px; letter-spacing: .14em; text-transform: uppercase; }
+  iframe { width: 812px; height: 375px; border: 0; display: block; background: #000; }
+</style>
+</head>
+<body>
+  <figure><figcaption>play</figcaption><iframe id="f-play" src="/" data-page="play"></iframe></figure>
+  <figure><figcaption>select</figcaption><iframe id="f-select" src="/" data-page="select"></iframe></figure>
+  <figure><figcaption>results</figcaption><iframe id="f-results" src="/" data-page="results"></iframe></figure>
+  <figure><figcaption>home (no override)</figcaption><iframe id="f-home" src="/"></iframe></figure>
+<script>
+/* Each frame runs the real overlay against the live game, so the artwork is
+ * the map actually selected. The only thing touched is `data-page` on the
+ * body, which is what the stylesheet keys the per-screen backdrop filter off;
+ * the app itself only rewrites it when the screen changes, so on a settled
+ * state the override holds. */
+for (const frame of document.querySelectorAll('iframe[data-page]')) {
+  frame.addEventListener('load', () => {
+    const want = frame.dataset.page;
+    const set = () => { frame.contentDocument.body.dataset.page = want; };
+    set();
+    setTimeout(set, 400);
+    setTimeout(set, 1200);
+  });
+}
+</script>
+</body>
+</html>
