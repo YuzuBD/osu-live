@@ -1,0 +1,7 @@
+@import url("../style.css");
+
+.backdrop, .bd {
+  transform: none !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+}

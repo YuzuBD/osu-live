@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>诊断 · osu! live</title>
+<title>横屏诊断 · osu! live</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; padding: 14px; background: #0b0a0d; color: #f5f4f7;
@@ -11,68 +11,69 @@
   h1 { font-size: 18px; margin: 0 0 2px; }
   p.lead { color: rgba(245,244,247,.6); font-size: 13px; margin: 0 0 14px; }
   ol { padding: 0; margin: 0; list-style: none; }
-  li { margin-bottom: 10px; }
+  li { margin-bottom: 9px; }
   a { display: block; padding: 10px 13px; background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
       color: #ff92c4; text-decoration: none; font-weight: 700; }
   a:active { background: rgba(255,255,255,.14); }
-  small { display: block; color: rgba(245,244,247,.5); font-weight: 400; margin-top: 3px; }
-  .tip { margin-top: 16px; padding: 11px 13px; background: rgba(255,95,162,.10);
+  small { display: block; color: rgba(245,244,247,.5); font-weight: 400; margin-top: 2px; }
+  .tip { margin-top: 15px; padding: 11px 13px; background: rgba(255,95,162,.10);
          border: 1px solid rgba(255,95,162,.3); border-radius: 8px; font-size: 13px; }
-  table { border-collapse: collapse; font-size: 13px; margin-top: 10px; width: 100%; }
-  td { padding: 3px 0; }
-  td:first-child { color: rgba(245,244,247,.6); }
+  table { border-collapse: collapse; font-size: 13px; margin-top: 6px; width: 100%; }
+  td { padding: 3px 0; vertical-align: top; }
+  td:first-child { color: rgba(245,244,247,.6); white-space: nowrap; padding-right: 10px; }
   code { font-size: 12px; color: #ffc74d; }
+  .big { font-size: 14px; }
 </style>
 </head>
 <body>
-<h1>osu! live — 诊断</h1>
-<p class="lead">从 1 开始逐个点。<b>哪个崩，就是那个原因。</b>每个都不用等太久。</p>
+<h1>横屏崩溃诊断</h1>
+<p class="lead">
+  <b class="big">请先在竖屏打开本页，然后旋转到横屏</b>，再逐个点开。<br>
+  每个变体都是真实页面，只删掉一样东西——而且是从第一个字节就生效，不是事后注入。
+</p>
 
 <ol>
-  <li><a href="v1-static.html">v1 纯静态<small>只有 HTML 和内联样式，不加载 app.js / style.css。这一项若崩，和页面无关。</small></a></li>
-  <li><a href="v2-css-only.html">v2 只加载 CSS<small>真实样式表，脚本被剥掉。崩 → 样式；不崩 → 脚本。</small></a></li>
-  <li><a href="v3-no-gradient.html">v3 禁用渐变与模糊<small>针对 conic-gradient / linear-gradient / filter。会自动换图 15 次。</small></a></li>
-  <li><a href="v4-no-dvh.html">v4 禁用 dvh 与 fixed<small>针对动态视口单位和固定定位。会自动换图 15 次。</small></a></li>
-  <li><a href="v5-no-animation.html">v5 禁用一切动画<small>针对过渡与补间。会自动换图 15 次。</small></a></li>
-  <li><a href="../index.html?demo=select">v6 完整页面（对照）<small>预期会崩，用来确认环境没问题。</small></a></li>
+  <li><a href="N0-control.html">N0 对照组<small>未修改。横屏应该崩，用来确认环境没变。</small></a></li>
+  <li><a href="N1-no-media.html">N1 删掉横屏媒体查询<small>把 <code>@media (orientation: landscape)</code> 整块从样式表里删除。</small></a></li>
+  <li><a href="N2-no-filter.html">N2 禁用 filter / backdrop-filter<small>模糊是合成层的大头。</small></a></li>
+  <li><a href="N3-no-gradient.html">N3 禁用渐变<small>含 conic-gradient 和 linear-gradient。</small></a></li>
+  <li><a href="N4-no-composite.html">N4 禁用背景层的 transform + filter<small>背景图层上的 scale + blur 组合。</small></a></li>
+  <li><a href="N5-no-dvh.html">N5 禁用 100dvh<small>改成 100%，排除动态视口单位。</small></a></li>
+  <li><a href="N6-no-grid.html">N6 禁用横屏 grid 布局<small>退回 flex，排除网格布局。</small></a></li>
 </ol>
 
 <div class="tip">
-  <b>每一步只需要告诉我两件事：</b>
+  <b>只需要回两件事：</b>
   <table>
-    <tr><td>崩了吗</td><td>崩 / 没崩 / 停了很久才崩</td></tr>
-    <tr><td>什么时候</td><td>一进去就崩，还是等了一会儿</td></tr>
+    <tr><td>N0 崩了吗</td><td>崩 / 没崩</td></tr>
+    <tr><td>N1–N6</td><td>哪几个能开、哪几个崩（一句话列出来就行）</td></tr>
   </table>
   <br>
-  v3 / v4 / v5 会自动换图 15 次，页面顶部有一行字会数到「✓ 完成 15 次换图，本项安全」。
-  看到那行就说明这一项<b>不是</b>原因，可以直接看下一个。
+  页面顶部有一条粉色横幅标着变体编号，方便确认打开的是哪一个。
 </div>
 
 <div class="tip" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.15)">
   <b>本机环境</b>
   <table>
-    <tr><td>dvh 单位</td><td><code id="p-dvh">…</code></td></tr>
-    <tr><td>@property</td><td><code id="p-prop">…</code></td></tr>
-    <tr><td>conic-gradient</td><td><code id="p-conic">…</code></td></tr>
-    <tr><td>backdrop-filter</td><td><code id="p-bd">…</code></td></tr>
-    <tr><td>safe-area env</td><td><code id="p-env">…</code></td></tr>
+    <tr><td>dvh</td><td><code id="p1">…</code></td></tr>
+    <tr><td>conic-gradient</td><td><code id="p2">…</code></td></tr>
+    <tr><td>backdrop-filter</td><td><code id="p3">…</code></td></tr>
+    <tr><td>safe-area env</td><td><code id="p4">…</code></td></tr>
+    <tr><td>@property</td><td><code id="p5">…</code></td></tr>
   </table>
-  <div style="margin-top:8px;font-size:12px;color:rgba(245,244,247,.5)" id="ua"></div>
+  <div style="margin-top:8px;font-size:11px;color:rgba(245,244,247,.45)" id="ua"></div>
 </div>
 
 <script>
-const mark = (id, ok) => { document.getElementById(id).textContent = ok ? '支持' : '不支持'; };
-mark('p-dvh', CSS.supports('height', '100dvh'));
-mark('p-conic', CSS.supports('background', 'conic-gradient(red, blue)'));
-mark('p-bd', CSS.supports('backdrop-filter', 'blur(2px)') || CSS.supports('-webkit-backdrop-filter', 'blur(2px)'));
-mark('p-env', CSS.supports('padding-top', 'env(safe-area-inset-top)'));
+const set = (id, ok) => { document.getElementById(id).textContent = ok ? '支持' : '不支持'; };
+set('p1', CSS.supports('height', '100dvh'));
+set('p2', CSS.supports('background', 'conic-gradient(red, blue)'));
+set('p3', CSS.supports('backdrop-filter', 'blur(2px)') || CSS.supports('-webkit-backdrop-filter', 'blur(2px)'));
+set('p4', CSS.supports('padding-top', 'env(safe-area-inset-top)'));
 let prop = false;
-try {
-  CSS.registerProperty({ name: '--diagprobe', syntax: '<number>', inherits: false, initialValue: '0' });
-  prop = true;
-} catch (e) { prop = false; }
-mark('p-prop', prop);
+try { CSS.registerProperty({ name: '--p', syntax: '<number>', inherits: false, initialValue: '0' }); prop = true; } catch (e) {}
+set('p5', prop);
 document.getElementById('ua').textContent = navigator.userAgent;
 </script>
 </body>

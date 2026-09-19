@@ -1,0 +1,8 @@
+@import url("../style.css");
+
+*, *::before, *::after {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

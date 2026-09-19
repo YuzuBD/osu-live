@@ -1,0 +1,7 @@
+@import url("../style.css");
+
+*, *::before, *::after { background-image: none !important; }
+.stars-ring { background: #1c1c22 !important; }
+.rung { background: #1c1c22 !important; }
+.track-fill { background: #ff5fa2 !important; }
+.hp-fill { background: #6ee287 !important; }
