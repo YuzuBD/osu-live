@@ -989,54 +989,41 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
    * because it is context, and the health track sits as a column on that
    * same rail so it shares the baseline instead of floating beside the
    * score with nothing to align to. */
-  /* ── play: the score owns the middle row and the live feedback sits beside
-   * it, so one flexible row holds the whole composition and cannot grow into
-   * the footer. Stacking score-above-stats instead made the two blocks fight
-   * for the same height and the stats ended up under the progress bar. */
+  /* ── play: score through the middle, the readouts on one rail at the
+   * bottom, health tracking beside them.
+   *
+   * The rows size to their content and the group sits just under the header
+   * band, so the slack in the body collects below the rail instead of being
+   * shared out between the blocks. Sharing it out is what pushed the counts
+   * down under the progress bar; the numbers keep their full size and the
+   * whole composition simply rides higher. */
   .body-play {
     display: grid;
-    grid-template-rows: var(--head-band-height, var(--head-band)) 1fr;
-    row-gap: var(--s2);
+    grid-template-rows: var(--head-band-height, var(--head-band)) auto auto;
+    align-content: start;
+    row-gap: var(--s3);
     min-height: 0;
   }
-  .body-play > .live-main {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
+  .body-play > .live { grid-column: 1 / -1; grid-row: 2; min-height: 0; }
+  .body-play > .live-stats { grid-column: 1 / -1; grid-row: 3; }
+  .body-play > .judges { display: none; }
+
+  /* Equal thirds for combo and accuracy, then the quieter pp readout and the
+   * health track. */
+  .body-play .live-stats {
+    grid-template-columns: 1fr 1fr auto auto;
+    align-items: end;
     column-gap: var(--s5);
     min-height: 0;
   }
-  .body-play .live-score { font-size: clamp(40px, 12.6vh, 68px); }
-  .body-play > .judges { display: none; }
-
-  /* The readouts stack so each keeps the full figure size without the group
-   * growing taller than the score beside it. */
-  .body-play .live-stats {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--s2);
-    grid-template-columns: none;
-  }
-  .body-play .live-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    padding-left: 0;
-    border-left: 0;
-    text-align: right;
-  }
-  .body-play .live-stat b { font-size: clamp(22px, 6.6vh, 36px); line-height: 1; }
-  .body-play .live-stat i { margin-top: 1px; }
-  .body-play .live-stat.is-pp b { font-size: var(--fs-md); }
+  .body-play .live-stat b { font-size: var(--fs-figure); }
+  .body-play .live-stat.is-pp b { font-size: var(--fs-head); }
   .body-play .hp {
-    width: clamp(8px, 2.4vh, 12px);
-    height: clamp(24px, 7vh, 40px);
+    width: clamp(9px, 2.6vh, 13px);
+    height: clamp(30px, 8.6vh, 46px);
     min-height: 0;
-    order: -1;
-    margin-bottom: var(--s1);
+    align-self: end;
+    margin-bottom: 3px;
   }
 
   /* ── results: grade half the width by two thirds of the height, set as
