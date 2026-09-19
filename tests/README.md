@@ -3,11 +3,12 @@
 无第三方依赖，`node` 和 `python` 直接跑。不需要 osu! 在运行。
 
 ```bash
-python tests/test_reader.py     # 读取器：内存被释放的各种情况、命名规则
-node  tests/verify_ui.js        # 前端：id 覆盖、四条渲染路径、产出值
-node  tests/test_flicker.js     # 空数据块不能把面板清空（切屏时的闪烁）
-node  tests/test_pages.js       # 页面切换：谁在显示、谁还在退场、被打断怎么办
-node  tests/check_ids.js        # app.js 里像 id 的字符串必须真的存在
+python tests/test_reader.py        # 读取器：内存被释放的各种情况、命名规则
+python tests/test_frozen_paths.py  # 打包版：数据写到哪、能不能写进去
+node  tests/verify_ui.js           # 前端：id 覆盖、四条渲染路径、产出值
+node  tests/test_flicker.js        # 空数据块不能把面板清空（切屏时的闪烁）
+node  tests/test_pages.js          # 页面切换：谁在显示、谁还在退场、被打断怎么办
+node  tests/check_ids.js           # app.js 里像 id 的字符串必须真的存在
 ```
 
 ## 各文件在防什么
@@ -15,6 +16,7 @@ node  tests/check_ids.js        # app.js 里像 id 的字符串必须真的存�
 | 文件 | 防的问题 |
 |---|---|
 | `test_reader.py` | 对象被 osu! 释放后指针变野。包括空指针、被回收的指针、半可读的记录、以及用 MD5 校验挡"可读但无意义"的垃圾。全部用假进程驱动，不需要游戏。 |
+| `test_frozen_paths.py` | 打包版把文件写到哪。起一个**假装自己是冻结版**的子进程（`sys.frozen` / `sys._MEIPASS` / `sys.executable`），`LOCALAPPDATA` 指向临时目录，然后真的驱动一次成绩捕获。防的是这两个都犯过的错：**把文件写在 exe 旁边**，以及**写到临时 bundle 里等于没写**。真实缓存不会被碰。 |
 | `verify_ui.js` | 每个 `els[...]` 引用的 id 都必须在 `index.html` 里存在——**这个 bug 让三个页面整块空白过两次**。另外验证四条渲染路径都能跑完，以及它们产出的值。 |
 | `test_flicker.js` | osu! 切屏那一帧会把对象释放掉，读回来是空的。验证空块**不会**把面板清空、不会把页面踢回主页。 |
 | `test_pages.js` | 切屏。**结构检查**：每屏里每一个带文字的元素都必须落在某个被动画的祖先之下——四屏是叠在一起的固定图层，漏掉一个就会被两屏同时画出来（"文字重叠"）。另外校验 JS 里的 `PAGE_LEAVE_MS`、CSS 里的 `--pg-out`、`--pg-in-delay` 三者的先后关系（分居两个文件，只有测试绑得住），以及退场/入场的类名账目：连切两屏时中间那屏不能留在屏幕上，退回一个还在退场的页面要取消它自己的退场。 |
