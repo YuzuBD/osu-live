@@ -158,6 +158,28 @@ function tagsHtml(pairs) {
     .join('');
 }
 
+/** Publish the header band's height as `--head-band-height`.
+ *
+ * In landscape the header is taken out of flow and pinned under the status
+ * rail, so the content beneath it has to reserve the space itself. Its height
+ * is not a constant: the title is a vh-derived clamp, and it becomes two lines
+ * when the song name is long. Measuring it and writing the result back as a
+ * custom property keeps the clearance exact at every size and wrap, which a
+ * hard-coded padding or grid row cannot do.
+ *
+ * The border box is used rather than `offsetHeight` because the header may sit
+ * inside the body grid; `offsetTop` there is measured against the grid area,
+ * not the page, which makes the value depend on the very layout it feeds.
+ */
+function syncHeadBand() {
+  const head = document.querySelector('.page.active .head');
+  const shell = document.querySelector('#shell');
+  if (!head || !shell) return;
+  const rect = head.getBoundingClientRect();
+  if (!rect.height) return; // hidden page; nothing meaningful to measure
+  shell.style.setProperty('--head-band-height', `${(rect.height + 16).toFixed(1)}px`);
+}
+
 /** Shrink a numeric element until it fits the space its box actually offers.
  *
  * Scores run from six to ten digits; measuring the laid-out width is exact,
@@ -488,6 +510,9 @@ function render(state) {
     setText(els['offline-hint'], `界面渲染出错：${renderError}`);
     els.offline.classList.add('active');
   }
+
+  // After painting, so the header being measured is the one now on screen.
+  syncHeadBand();
 
   const clock = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   for (const bar of statusBars) {
