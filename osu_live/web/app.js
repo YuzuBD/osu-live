@@ -814,9 +814,16 @@ function renderResults(state) {
   const meta = [];
   if (score.max_combo) meta.push(`最大连击 ${nf.format(score.max_combo)}x`);
   if (beatmap.object_count) meta.push(`${nf.format(beatmap.object_count)} 物件`);
-  if (score.captured_at) {
-    meta.push(new Date(score.captured_at * 1000)
-      .toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+  const playedAt = score.captured_at || score.played_at;
+  if (playedAt) {
+    /* A result read off the results screen can be from any earlier session, so
+     * a bare clock time would be a lie by omission: this one says which day it
+     * was when it was not today. */
+    const when = new Date(playedAt * 1000);
+    const today = new Date();
+    meta.push(when.toDateString() === today.toDateString()
+      ? when.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      : when.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }));
   }
   setText(els['res-meta'], meta.join(' · '));
 }
@@ -846,7 +853,11 @@ function render(state) {
       lastPlayScore = state.last_score;
     }
   }
-  if (page === 'results') shownResults = lastPlayScore;
+  /* `result` is the score the client is displaying right now, read out of the
+   * game rather than remembered. It wins: the cache can only ever hold the
+   * newest play, while that screen can be showing a score from any earlier
+   * session -- an old one opened from the local leaderboard, for instance. */
+  if (page === 'results') shownResults = state.result || lastPlayScore;
 
   const playing = page === 'play';
 

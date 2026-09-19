@@ -239,15 +239,18 @@ class StateManager:
                 self._last_pp = self._compute_pp(snapshot)
                 self._pp_computed_at = time.perf_counter()
 
-        # pp for the finished play, recalculated when a new score lands.
-        score = snapshot.last_score
+        # pp for the finished play, recalculated when a new score lands. What
+        # the results screen is displaying wins over this program's own cache:
+        # it is whatever is on the phone's screen, which may be a play from any
+        # earlier session that the cache could never have held.
+        score = snapshot.result or snapshot.last_score
         score_key = None
         if score:
             beatmap = score.get("beatmap")
             score_key = (
                 getattr(beatmap, "folder", "") or "",
                 getattr(beatmap, "filename", "") or "",
-                float(score.get("captured_at") or 0.0),
+                float(score.get("captured_at") or score.get("played_at") or 0.0),
             )
         if score_key != self._score_pp_key:
             self._score_pp_key = score_key
@@ -388,7 +391,8 @@ class StateManager:
             "key_overlay": snapshot.key_overlay,
             "hit_errors": snapshot.hit_errors[-64:],
             "leaders": snapshot.leaders,
-            "last_score": _last_score_json(snapshot.last_score),
+            "last_score": _score_json(snapshot.last_score),
+            "result": _score_json(snapshot.result),
         }
         bancho = self._bancho
         payload["bancho"] = _bancho_json(bancho, bancho.latest(), snapshot.player)
@@ -402,8 +406,8 @@ class StateManager:
                 self._last_good = payload
 
 
-def _last_score_json(score: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Serialise the cached last play, expanding its nested beatmap."""
+def _score_json(score: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Serialise a play, expanding its nested beatmap."""
     if not score:
         return None
     beatmap = score.get("beatmap")

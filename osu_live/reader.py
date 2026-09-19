@@ -100,6 +100,18 @@ _SCORE_HIT_KATU = 0x90
 _SCORE_HIT_MISS = 0x92
 _SCORE_COMBO = 0x94
 
+#: ``Ruleset`` member holding the score the results screen is displaying. The
+#: game reads its own results from here, so whatever is on that screen is what
+#: comes back -- including a score played in an earlier session and opened from
+#: the local leaderboard.
+_RULESET_RESULT_SCREEN = 0x38
+
+#: ``Score`` members only a result screen carries: the online id and the two
+#: halves of the .NET ``DateTime`` the play was set at.
+_RESULT_ONLINE_ID = 0x04
+_RESULT_DATE_LOW = 0xA0
+_RESULT_DATE_HIGH = 0xA4
+
 #: ``UserProfile`` members. Builds disagree on the tail: tosu reads pp at 0x88
 #: and the country code at 0x9c, while the build calibrated here has pp at 0x9c
 #: and the country code at 0x98. ``_profile_layout`` picks between them.
@@ -118,6 +130,7 @@ _PROFILE_PP_LEGACY = 0x9C
 
 #: Game state ids (index into ``signatures.GAME_STATES``) the reader branches on.
 _STATE_PLAY = 2
+_STATE_RESULT_SCREEN = 7
 _STATE_WATCHING_REPLAY = 25
 
 #: Sanity bound for a key's press count. A real play cannot exceed a few
@@ -216,6 +229,9 @@ class Snapshot:
     hit_errors: list[int] = field(default_factory=list)
     leaders: list[dict[str, Any]] = field(default_factory=list)
     last_score: dict[str, Any] | None = None
+    #: The score the results screen is showing right now, read from the client
+    #: rather than from this program's own cache. See ``_read_result_screen``.
+    result: dict[str, Any] | None = None
 
 
 class OsuReader:
@@ -453,6 +469,12 @@ class OsuReader:
         snap.key_overlay = self._read_key_overlay(ruleset, mode, snap.state_id)
         snap.hit_errors = self._read_hit_errors(ruleset)
         snap.leaders = self._read_leaders(ruleset)
+        snap.result = self._read_result_screen(ruleset, snap.state_id)
+        if snap.result:
+            # The displayed score has no beatmap of its own; on a results screen
+            # the loaded map is the one it was set on, which is what makes the
+            # result a complete block the painter can use as-is.
+            snap.result["beatmap"] = snap.beatmap
         snap.last_score = self._track_last_score(snap)
         return snap
 
@@ -675,6 +697,57 @@ class OsuReader:
             "failed": player_hp <= 0,
             "mods": mods,
         }
+
+    def _read_result_screen(self, ruleset: int, state_id: int) -> dict[str, Any] | None:
+        """The score the results screen is showing, read from the client.
+
+        This is the only way to show a result this program did not witness. Its
+        own cache can hold nothing but the newest play, while the client keeps
+        the score it is displaying at ``[Ruleset + 0x38]`` for as long as that
+        screen is up -- and opening an old score from the local leaderboard
+        shows that same screen, so a play from any earlier session is readable
+        here too.
+
+        Read only while that screen is up. Elsewhere the pointer is stale or
+        zero, and half a score is worse than none.
+        """
+        if state_id != _STATE_RESULT_SCREEN:
+            return None
+        process = self.process
+        try:
+            base = process.read_u32(ruleset + _RULESET_RESULT_SCREEN)
+            if not base:
+                return None
+            hits = _read_hits(process, base)
+            score = process.read_i32(base + _SCORE_TOTAL)
+            mode = process.read_i32(base + _SCORE_MODE)
+            # Every results screen has a score, some judgements and a game mode
+            # in range; an object that is not a score has none of the three.
+            if score <= 0 or not 0 <= mode <= 3 or sum(hits.__dict__.values()) <= 0:
+                return None
+            pair = process.read_u32(base + _SCORE_MODS_PAIR)
+            raw = process.read_u32(pair + 0xC) ^ process.read_u32(pair + 0x8) if pair else 0
+            mods = self.decode_mods(raw)
+            accuracy = _accuracy(mode, hits)
+            return {
+                "player_name": process.read_csharp_string(
+                    process.read_u32(base + _SCORE_PLAYER_NAME)
+                ),
+                "mode": mode,
+                "score": score,
+                "combo": process.read_i16(base + _SCORE_COMBO),
+                "max_combo": process.read_i16(base + _SCORE_MAX_COMBO),
+                "accuracy": round(accuracy, 3),
+                "grade": grade(mode, hits, accuracy, int(mods.get("bits", 0))),
+                "hits": hits.__dict__,
+                "mods": mods,
+                "played_at": _net_datetime(
+                    process.read_u32(base + _RESULT_DATE_LOW),
+                    process.read_u32(base + _RESULT_DATE_HIGH),
+                ),
+            }
+        except MemoryError_:
+            return None
 
     def _read_key_overlay(self, ruleset: int, mode: int, state_id: int) -> list[dict[str, Any]]:
         """Per-key press state and press count, while a play is running.
@@ -943,6 +1016,26 @@ def grade(
     if accuracy > 70.0:
         return "C"
     return "D"
+
+
+#: Seconds between 0001-01-01, which a .NET ``DateTime`` counts from, and
+#: 1970-01-01, which everything else does.
+_NET_EPOCH_OFFSET = 62_135_596_800
+
+
+def _net_datetime(low: int, high: int) -> float:
+    """A .NET ``DateTime``'s binary form as a Unix timestamp, or 0.
+
+    The value is 100-nanosecond ticks since 0001-01-01, except that the top two
+    bits of the 64-bit word carry the ``DateTimeKind`` rather than the time, so
+    they are masked off before the ticks are read. Anything outside living
+    memory is reported as 0 rather than as a date to puzzle over.
+    """
+    ticks = ((high << 32) | low) & 0x3FFF_FFFF_FFFF_FFFF
+    seconds = ticks / 10_000_000 - _NET_EPOCH_OFFSET
+    if not 0 < seconds < 4_102_444_800:  # 1970 .. 2100
+        return 0.0
+    return seconds
 
 
 def _accuracy(mode: int, hits: HitCounts) -> float:

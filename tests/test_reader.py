@@ -338,6 +338,154 @@ def test_names_prefer_the_original():
     check("empty map has no name", empty.full_name, "")
 
 
+class ResultScreenMemory:
+    """A synthetic results screen, laid out the way the client stores one.
+
+    The offsets are the ones the reader uses; what this proves is that the
+    reader digs the right fields out of such an object and rejects one that is
+    not a score. It cannot prove the offsets match the build -- only a real
+    results screen can, and that is what web/diag/ is for.
+    """
+
+    def __init__(self, base=0x5000, mods=0x6000, name=0x7000, overrides=None):
+        import datetime
+        played = datetime.datetime(2026, 9, 19, 15, 33, 48, tzinfo=datetime.timezone.utc)
+        epoch = datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc)
+        ticks = int((played - epoch).total_seconds() * 10_000_000)
+        self.name = name
+        self.memory = {
+            RULESET + R._RULESET_RESULT_SCREEN: base,
+            base + R._SCORE_PLAYER_NAME: name,
+            base + R._SCORE_MODS_PAIR: mods,
+            mods + 0x8: 0,
+            mods + 0xC: 0,
+            base + R._SCORE_TOTAL: 7364744,
+            base + R._SCORE_MODE: 0,
+            base + R._SCORE_MAX_COMBO: 665,
+            base + R._SCORE_COMBO: 66,
+            base + R._SCORE_HIT300: 483,
+            base + R._SCORE_HIT100: 17,
+            base + R._SCORE_HIT50: 0,
+            base + R._SCORE_HIT_GEKI: 122,
+            base + R._SCORE_HIT_KATU: 15,
+            base + R._SCORE_HIT_MISS: 1,
+            base + R._RESULT_DATE_LOW: ticks & 0xFFFFFFFF,
+            base + R._RESULT_DATE_HIGH: (ticks >> 32) & 0x3FFFFFFF,
+        }
+        self.memory.update(overrides or {})
+
+    def read_u32(self, address):
+        if address in self.memory:
+            return self.memory[address] & 0xFFFFFFFF
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+    read_ptr = read_u32
+
+    def read_i32(self, address):
+        value = self.memory.get(address)
+        if value is None:
+            raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+        return value - 0x100000000 if value >= 0x80000000 else value
+
+    def read_i16(self, address):
+        value = self.memory.get(address)
+        if value is None:
+            raise MemoryError_(f"ReadProcessMemory({address:#x}, 2) failed: 299")
+        return value
+
+    def read_csharp_string(self, address):
+        if address == self.name:
+            return "Yuzu"
+        raise MemoryError_(f"ReadProcessMemory({address:#x}, 4) failed: 299")
+
+
+def with_result(process):
+    r = bare_reader()
+    r._process = process
+    return r
+
+
+def test_result_screen_reads_what_the_game_is_showing():
+    """The displayed score is read off the client, not from the cache."""
+    r = with_result(ResultScreenMemory())
+    result = r._read_result_screen(RULESET, R._STATE_RESULT_SCREEN)
+    check("a result is returned", result is not None, True)
+    if not result:
+        return
+    check("score", result["score"], 7364744)
+    check("player", result["player_name"], "Yuzu")
+    check("max combo", result["max_combo"], 665)
+    check("combo", result["combo"], 66)
+    check("mode", result["mode"], 0)
+    check("hit300", result["hits"]["hit300"], 483)
+    check("hit100", result["hits"]["hit100"], 17)
+    check("miss", result["hits"]["miss"], 1)
+    # (483*300 + 17*100 + 0*50 + 122*1000 + 15*200) / (501*300)
+    check("accuracy from the judgements", result["accuracy"], 97.538)
+    check("grade from the judgements", result["grade"], "A")
+    import datetime
+    check("the date the play was set",
+          datetime.datetime.fromtimestamp(result["played_at"], datetime.timezone.utc)
+          .strftime("%Y-%m-%d %H:%M:%S"),
+          "2026-09-19 15:33:48")
+
+
+def test_result_screen_is_only_read_while_it_is_up():
+    """Elsewhere the pointer is stale or zero; a half score is worse than none.
+
+    This is what stops a score from appearing on every other screen.
+    """
+    r = with_result(ResultScreenMemory())
+    for state in (0, 2, 5, 25):  # menu, play, selectPlay, watchingReplay
+        check(f"state {state} reads nothing", r._read_result_screen(RULESET, state), None)
+
+
+def test_result_screen_rejects_objects_that_are_not_scores():
+    """A wrong object must give nothing rather than a plausible-looking number."""
+    # Nothing behind the pointer at all.
+    r = with_result(ResultScreenMemory(overrides={RULESET + R._RULESET_RESULT_SCREEN: 0}))
+    check("a null pointer reads nothing",
+          r._read_result_screen(RULESET, R._STATE_RESULT_SCREEN), None)
+
+    # A score of zero: the slot is empty.
+    r = with_result(ResultScreenMemory(overrides={0x5000 + R._SCORE_TOTAL: 0}))
+    check("a zero score reads nothing",
+          r._read_result_screen(RULESET, R._STATE_RESULT_SCREEN), None)
+
+    # No judgements at all: whatever this is, it is not a played score.
+    r = with_result(ResultScreenMemory(overrides={
+        0x5000 + R._SCORE_HIT300: 0, 0x5000 + R._SCORE_HIT100: 0,
+        0x5000 + R._SCORE_HIT_MISS: 0, 0x5000 + R._SCORE_HIT_GEKI: 0,
+        0x5000 + R._SCORE_HIT_KATU: 0,
+    }))
+    check("an empty judgement set reads nothing",
+          r._read_result_screen(RULESET, R._STATE_RESULT_SCREEN), None)
+
+    # A game mode outside osu!/taiko/catch/mania.
+    r = with_result(ResultScreenMemory(overrides={0x5000 + R._SCORE_MODE: 9}))
+    check("a nonsense mode reads nothing",
+          r._read_result_screen(RULESET, R._STATE_RESULT_SCREEN), None)
+
+
+def test_net_datetime_handles_kind_bits_and_nonsense():
+    """.NET puts the DateTimeKind in the top two bits of the tick count."""
+    import datetime
+    played = datetime.datetime(2026, 9, 19, 15, 33, 48, tzinfo=datetime.timezone.utc)
+    epoch = datetime.datetime(1, 1, 1, tzinfo=datetime.timezone.utc)
+    ticks = int((played - epoch).total_seconds() * 10_000_000)
+    low, high = ticks & 0xFFFFFFFF, (ticks >> 32) & 0x3FFFFFFF
+
+    check("an exact round trip",
+          R._net_datetime(low, high),
+          played.timestamp())
+    for kind in (0x40000000, 0x80000000, 0xC0000000):
+        check(f"kind bits {kind:#x} are masked off",
+              R._net_datetime(low, high | kind), played.timestamp())
+    check("an empty DateTime is not a date", R._net_datetime(0, 0), 0.0)
+    check("a tiny value is not a date", R._net_datetime(1, 1), 0.0)
+    check("a maxed value is not a date", R._net_datetime(0xFFFFFFFF, 0x3FFFFFFF), 0.0)
+
+
 if __name__ == "__main__":
     for fn in [
         test_gameplay_base_revalidates_remembered_layout,
@@ -352,6 +500,10 @@ if __name__ == "__main__":
         test_partial_record_is_rejected_before_the_digest,
         test_names_prefer_the_original,
         test_read_once_then_cleared,
+        test_result_screen_reads_what_the_game_is_showing,
+        test_result_screen_is_only_read_while_it_is_up,
+        test_result_screen_rejects_objects_that_are_not_scores,
+        test_net_datetime_handles_kind_bits_and_nonsense,
     ]:
         print(f"\n{fn.__name__}")
         fn()
