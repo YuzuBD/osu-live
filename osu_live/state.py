@@ -10,11 +10,11 @@ import logging
 import threading
 import time
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 
 from .bancho_api import BanchoClient, BanchoSnapshot
 from .config import Config
+from .paths import DATA_ROOT
 from .pp_engine import PpEngine
 from .reader import HitCounts, OsuReader, Snapshot, set_failure_sink
 from .winmem import MemoryError_
@@ -32,8 +32,9 @@ _READ_FAILURES_BEFORE_REATTACH = 8
 
 #: Where read failures are recorded. A failure that lasts a few frames is
 #: invisible by the time anyone looks at the overlay, so it is written down as
-#: it happens rather than reconstructed afterwards.
-LOG_PATH = Path(__file__).resolve().parent.parent / ".osu_live.log"
+#: it happens rather than reconstructed afterwards. Beside the executable in a
+#: frozen build, since the bundle itself is temporary.
+LOG_PATH = DATA_ROOT / ".osu_live.log"
 
 log = logging.getLogger("osu_live")
 log.setLevel(logging.INFO)

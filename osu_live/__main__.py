@@ -13,6 +13,7 @@ import sys
 import threading
 
 from .config import Config
+from .paths import DATA_ROOT, WEB_ROOT
 from .server import local_addresses, serve
 from .state import StateManager
 
@@ -32,6 +33,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = Config.from_env()
+
+    # The banner below carries the address the phone has to be pointed at, so
+    # it must not sit in a buffer. Python line-buffers a terminal but blocks
+    # anything redirected to a file or a service log, where the address would
+    # then not appear until the program exits -- which, for this program, is
+    # when it is no longer useful.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, OSError):
+        pass
+
     if args.host:
         config.host = args.host
     if args.port:
@@ -44,6 +56,14 @@ def main(argv: list[str] | None = None) -> int:
         config.bancho_player = args.player
     if args.token:
         config.access_token = args.token
+
+    # A build that lost its web assets would otherwise serve 404s to the phone
+    # and look like a networking problem. Checked before the port is bound, so
+    # bailing out here does not leave a socket behind.
+    if not WEB_ROOT.is_dir():
+        print(f"the web assets are missing from {WEB_ROOT}", file=sys.stderr)
+        print("rebuild with `pyinstaller osu-live.spec`", file=sys.stderr)
+        return 1
 
     manager = StateManager(config)
     server = serve(config, manager)
@@ -61,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  songs   {config.songs_folder}")
     if config.bancho_api_url:
         print(f"  bancho  {config.bancho_api_url} ({config.bancho_player or 'no player set'})")
+    print(f"  config  {DATA_ROOT}")
     print("\nPress Ctrl+C to stop.")
 
     stop = threading.Event()

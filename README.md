@@ -92,6 +92,35 @@ osu! live is running
 用手机浏览器打开那个 `phone` 地址即可。手机和电脑需要在同一局域网，
 并且允许 Python 通过 Windows 防火墙（第一次运行时会弹窗）。
 
+## 打包成单个 exe
+
+不想在别的机器上装 Python 时：
+
+```bash
+pip install pyinstaller
+python -m PyInstaller osu-live.spec --noconfirm
+```
+
+产物是 `dist/osu-live.exe`（约 9 MB），双击或在终端里跑都行，目标机器不需要装
+Python。参数、`.env`、日志都和源码运行时一致。
+
+**`.env` 放在 exe 旁边**，不是放在源码目录。这是刻意的：打包后程序和资源被解到
+一个临时目录，进程一退就被删掉，所以 `--add-data` 的资源和程序写出来的文件必须
+分开对待 —— `osu_live/paths.py` 就是干这个的，源码运行时两者都指向仓库根目录。
+启动时打印的 `config` 一行会告诉你它实际用了哪个目录。
+
+两个坑，改构建时容易踩：
+
+- **入口必须是 `run.py`，不能是 `osu_live/__main__.py`。** PyInstaller 把入口当顶层
+  脚本来跑，包内的相对导入（`from .config import …`）在那里没有父包，会直接
+  `ImportError: attempted relative import with no known parent package`。
+- **web 资源要放到 `osu_live/web`**，和 `paths.py` 里认的路径一致。放错位置的话
+  程序照常启动、终端照常打印地址，但手机打开是 404 —— 所以启动时会先检查这个目录，
+  不在就直接报错退出，而不是让你去查网络。
+
+`akatsuki_pp_py` 是 Rust 编译出来的 `.pyd`，PyInstaller 顺着 import 就能带上。
+升级它之后建议实测一次 pp 有没有数：它是**算不出来时不报错、只是没有值**。
+
 ## 配置
 
 复制 `.env.example` 为 `.env`，或直接用命令行参数。
@@ -239,7 +268,10 @@ osu_live/
   bancho_api.py   bancho.py v1 API 客户端（可选）
   state.py        采集线程：合并内存 / pp / 服务器数据
   server.py       HTTP + SSE 服务
+  paths.py        文件位置：源码运行 vs 打包成 exe 的两种根目录
   web/            手机端界面（原生 HTML/CSS/JS）
     diag/         诊断与预览页，不是应用的一部分（见 diag/README.md）
+run.py            入口（打包用，也可直接 python run.py）
+osu-live.spec     PyInstaller 构建定义
 tests/            回归测试，无第三方依赖（见 tests/README.md）
 ```

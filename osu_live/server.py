@@ -17,9 +17,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .config import Config
+from .paths import WEB_ROOT
 from .state import StateManager
-
-WEB_ROOT = Path(__file__).resolve().parent / "web"
 
 #: Longest a subscriber may go without traffic before we emit a keep-alive.
 HEARTBEAT_SECONDS = 15.0

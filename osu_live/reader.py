@@ -15,10 +15,10 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable
 
 from . import signatures
+from .paths import DATA_ROOT
 from .winmem import MemoryError_, Process, list_processes
 
 #: Where a partial read failure is reported. A field that fails while the rest
@@ -42,8 +42,9 @@ def _note_failure(message: str) -> None:
             pass  # diagnostics must never break the read path
 
 #: Where the most recent completed play is kept, so the results screen survives
-#: an osu! restart or this program restarting.
-LAST_SCORE_PATH = Path(__file__).resolve().parent.parent / ".last_score.json"
+#: an osu! restart or this program restarting. Next to the executable, not in
+#: the bundle: a frozen build's bundle is a temporary directory.
+LAST_SCORE_PATH = DATA_ROOT / ".last_score.json"
 
 #: osu! process names, stable first.
 OSU_PROCESS_NAMES = ("osu!.exe",)

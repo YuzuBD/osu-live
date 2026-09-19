@@ -6,3 +6,8 @@ __pycache__/
 .osu_live.log
 .osu_live.prev.log
 .osu_live.*.log
+
+# PyInstaller. osu-live.spec is the build definition and is tracked; these are
+# only its output.
+build/
+dist/
