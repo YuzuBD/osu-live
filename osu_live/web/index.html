@@ -28,33 +28,32 @@
     </div>
 
     <div class="body body-home">
-      <header class="who">
-        <img class="who-avatar" id="home-avatar" alt="" hidden>
-        <div class="who-text">
-          <h1 class="who-name" id="home-name">—</h1>
-          <div class="who-sub" id="home-sub"></div>
-        </div>
+      <header class="head">
+        <div class="head-eyebrow">当前选图</div>
+        <h1 class="head-title" id="home-song">—</h1>
+        <div class="head-sub" id="home-song-sub"></div>
+        <div class="chips-row" id="home-tags"></div>
       </header>
 
-      <div class="figures">
+      <div class="account">
+        <div class="who">
+          <img class="who-avatar" id="home-avatar" alt="" hidden>
+          <div class="who-text">
+            <h2 class="who-name" id="home-name">—</h2>
+            <div class="who-sub" id="home-sub"></div>
+          </div>
+        </div>
         <div class="figure">
           <div class="figure-label" id="home-pp-label">总表现</div>
           <div class="figure-value" id="home-pp">—</div>
         </div>
-
-        <div class="rail-stats">
-          <div class="stat"><b id="home-acc">—</b><i>准确率</i></div>
-          <div class="stat"><b id="home-ranked">—</b><i>总分</i></div>
-          <div class="stat"><b id="home-plays">—</b><i>游玩</i></div>
-          <div class="stat"><b id="home-rank">—</b><i>排名</i></div>
-        </div>
       </div>
 
-      <div class="now">
-        <div class="eyebrow">当前选图</div>
-        <h2 class="now-title" id="home-song">—</h2>
-        <div class="now-sub" id="home-song-sub"></div>
-        <div class="chips-row" id="home-tags"></div>
+      <div class="rail-stats">
+        <div class="stat"><b id="home-acc">—</b><i>准确率</i></div>
+        <div class="stat"><b id="home-ranked">—</b><i>总分</i></div>
+        <div class="stat"><b id="home-plays">—</b><i>游玩</i></div>
+        <div class="stat"><b id="home-rank">—</b><i>排名</i></div>
       </div>
     </div>
 
@@ -195,16 +194,18 @@
 
       <div class="verdict-grade" id="res-grade">—</div>
 
-      <div class="verdict-score">
-        <div class="eyebrow">得分</div>
-        <div class="verdict-value" id="res-score">0</div>
-        <div class="eyebrow" id="res-stars"></div>
-      </div>
+      <div class="verdict-side">
+        <div class="verdict-score">
+          <div class="eyebrow">得分</div>
+          <div class="verdict-value" id="res-score">0</div>
+          <div class="eyebrow" id="res-stars"></div>
+        </div>
 
-      <div class="frame">
-        <div class="stat"><b id="res-pp">—</b><i>表现</i></div>
-        <div class="stat"><b id="res-acc">—</b><i>准确率</i></div>
-        <div class="stat"><b id="res-combo">—</b><i>连击</i></div>
+        <div class="frame">
+          <div class="stat"><b id="res-pp">—</b><i>表现</i></div>
+          <div class="stat"><b id="res-acc">—</b><i>准确率</i></div>
+          <div class="stat"><b id="res-combo">—</b><i>连击</i></div>
+        </div>
       </div>
 
       <div class="judges" id="res-judges"></div>

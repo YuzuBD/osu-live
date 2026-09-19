@@ -405,37 +405,20 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 
 .rail-stats.is-tight .stat b { font-size: var(--fs-md); }
 
-/* ── now: the selected map ────────────────────────────────────────────── */
+/* ── account: the player's own identity, centred on the home screen ───── */
 
-.now {
-  position: relative;
+.account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
   min-width: 0;
-  padding-top: var(--s3);
-  border-top: 1px solid var(--hair);
+  text-align: center;
 }
 
-.now-title {
-  margin: var(--s1) 0 0;
-  font-size: var(--fs-lg);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -.02em;
-  text-shadow: var(--tsh);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.now-sub {
-  margin-top: 2px;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--accent-hi);
-  text-shadow: var(--tsh);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.account .who { flex-direction: column; gap: var(--s3); }
+.account .figure { text-align: center; }
+.account .figure-value { display: inline-block; }
 
 /* ── chips ────────────────────────────────────────────────────────────── */
 
@@ -699,32 +682,40 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 
 /* ── verdict: the grade is the object, not a badge in a row ───────────── */
 
+/* The grade is set as type, not placed in a badge. A filled block at this size
+ * dominated the screen and flattened the whole page into one colour; letting
+ * the letterform carry it keeps the verdict legible and the rank's own colour
+ * becomes the only accent it needs. */
 .verdict-grade {
   display: grid;
   place-content: center;
-  border-radius: 4px;
-  font-size: clamp(96px, 26vh, 190px);
+  font-size: clamp(88px, 25vh, 180px);
   font-weight: 800;
-  line-height: .8;
-  letter-spacing: -.06em;
+  line-height: .78;
+  letter-spacing: -.07em;
   color: var(--ink);
-  background: rgba(255, 255, 255, .05);
-  border: 1px solid var(--hair);
-  text-shadow: 0 4px 24px rgba(0, 0, 0, .7);
+  text-shadow: 0 4px 30px rgba(0, 0, 0, .75);
 }
 
 .verdict-grade[data-grade="X"],
-.verdict-grade[data-grade="SS"] { background: linear-gradient(150deg, #ffd76e, #ff9f43); color: #241703; border-color: transparent; box-shadow: 0 0 44px rgba(255, 180, 70, .3); }
-.verdict-grade[data-grade="S"]  { background: linear-gradient(150deg, #ffd76e, #ffb347); color: #241703; border-color: transparent; box-shadow: 0 0 40px rgba(255, 190, 80, .26); }
+.verdict-grade[data-grade="SS"] { color: #ffcf5c; text-shadow: 0 4px 34px rgba(255, 180, 70, .45); }
+.verdict-grade[data-grade="S"]  { color: #ffd76e; text-shadow: 0 4px 32px rgba(255, 190, 80, .42); }
 .verdict-grade[data-grade="XH"],
-.verdict-grade[data-grade="SH"] { background: linear-gradient(150deg, #eef6ff, #b9cbd9); color: #171f28; border-color: transparent; box-shadow: 0 0 40px rgba(200, 230, 255, .24); }
-.verdict-grade[data-grade="A"]  { background: linear-gradient(150deg, #86ef9c, #35c46a); color: #06210f; border-color: transparent; box-shadow: 0 0 36px rgba(110, 226, 135, .26); }
-.verdict-grade[data-grade="B"]  { background: linear-gradient(150deg, #86dcff, #35a8e0); color: #04202e; border-color: transparent; box-shadow: 0 0 36px rgba(93, 216, 255, .24); }
-.verdict-grade[data-grade="C"]  { background: linear-gradient(150deg, #ffd06a, #f09030); color: #2b1a03; border-color: transparent; box-shadow: 0 0 36px rgba(255, 199, 68, .24); }
+.verdict-grade[data-grade="SH"] { color: #dbe9f5; text-shadow: 0 4px 32px rgba(200, 230, 255, .38); }
+.verdict-grade[data-grade="A"]  { color: var(--ok); text-shadow: 0 4px 30px rgba(110, 226, 135, .38); }
+.verdict-grade[data-grade="B"]  { color: var(--c-300); text-shadow: 0 4px 30px rgba(93, 216, 255, .36); }
+.verdict-grade[data-grade="C"]  { color: var(--c-50); text-shadow: 0 4px 30px rgba(255, 199, 68, .34); }
 .verdict-grade[data-grade="D"],
-.verdict-grade[data-grade="F"]  { background: linear-gradient(150deg, #ff9090, #d63b3b); color: #2b0606; border-color: transparent; box-shadow: 0 0 36px rgba(255, 87, 87, .26); }
+.verdict-grade[data-grade="F"]  { color: var(--bad); text-shadow: 0 4px 30px rgba(255, 87, 87, .36); }
 
-.verdict-score { min-width: 0; align-self: center; }
+/* Score above, the remaining figures below it, as one block on the right. */
+.verdict-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s4);
+  min-width: 0;
+}
 
 .verdict-value {
   font-size: var(--fs-score);
@@ -918,36 +909,33 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
   .who { padding-right: 0; }
   .head { padding-bottom: var(--s1); }
 
-  /* ── home: account across the top, figure left, selected map right ── */
+  /* ── home: song top-left, the account centred, progress at the foot ──
+   * The account is the subject of this screen, so it is centred in the space
+   * the header and footer leave rather than pushed to one side. */
   .body-home {
-    display: grid;
-    grid-template-columns: 55fr 45fr;
-    grid-template-rows: auto 1fr;
-    column-gap: var(--s6);
-    align-items: start;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s5);
   }
-  .body-home > .who { grid-column: 1 / -1; grid-row: 1; }
-  .body-home > .figures { grid-column: 1; grid-row: 2 / span 2; align-self: center; }
-  .body-home > .now {
-    grid-column: 2;
-    grid-row: 2 / span 2;
-    border-top: 0;
-    border-left: 1px solid var(--hair);
-    padding-top: 0;
-    padding-left: var(--s5);
-  }
-  /* Both columns open on their own label, so the labels share a line. */
-  .body-home .eyebrow { line-height: 1; margin: 0; }
+  .body-home > .head { align-self: stretch; }
+  .body-home > .rail-stats { align-self: stretch; width: 100%; }
+  .body-home .account { gap: var(--s2); }
 
-  /* ── select: figures left, map identity right ─────────────────────── */
+  /* ── select: figures left, difficulty and map attributes right ─────── */
   .body-select {
     display: grid;
-    grid-template-columns: 1.02fr .98fr;
-    column-gap: var(--s5);
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    column-gap: var(--s6);
+    row-gap: var(--s3);
     min-height: 0;
   }
-  .sel-left { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); min-height: 0; }
-  .sel-right { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); min-height: 0; }
+  /* The song identity keeps the top-left slot it has on every other screen. */
+  .body-select > .head { grid-column: 1 / -1; grid-row: 1; }
+  .sel-left { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); min-height: 0; }
+  .sel-right { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); min-height: 0; }
 
   /* ── play: title, the score owning the middle, live feedback on the
    * bottom rail. Combo and accuracy split the width; pp is held smaller
@@ -974,38 +962,38 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
     margin-top: var(--s1);
   }
 
-  /* ── results: grade occupies the left two thirds, figures to its right ─
-   * 812×375 works out to three columns; the grade spans the first two and the
-   * score and the framed block stack in the third. */
+  /* ── results: grade half the width by two thirds of the height, set as
+   * type with no plate behind it; score and the remaining figures stack to
+   * its right. Song identity keeps the same top-left slot as every other
+   * screen. */
   .body-results {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    column-gap: var(--s4);
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    column-gap: var(--s6);
     row-gap: var(--s3);
-    align-content: center;
     min-height: 0;
   }
+  .body-results > .head { grid-column: 1 / -1; grid-row: 1; }
   .body-results > .head.is-full { grid-column: 1 / -1; grid-row: 1; }
   .body-results > .verdict-grade {
-    grid-column: 1 / span 2;
-    grid-row: 2 / span 2;
-    font-size: clamp(96px, 34vh, 176px);
+    grid-column: 1;
+    grid-row: 2;
     align-self: stretch;
+    justify-self: center;
+    font-size: clamp(104px, 40vh, 210px);
   }
-  .body-results > .verdict-score { grid-column: 3; grid-row: 2; align-self: start; }
+  .body-results > .verdict-side { grid-column: 2; grid-row: 2; }
   .body-results > .frame {
-    grid-column: 3;
-    grid-row: 3;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
     row-gap: 0;
     padding: var(--s2) var(--s3);
-    align-self: start;
   }
-  .body-results > .frame .stat { padding: var(--s2) 0 0; border-left: 0; border-top: 1px solid var(--hair); }
-  .body-results > .frame .stat:first-child { padding-top: 0; border-top: 0; }
-  .body-results > .frame .stat b { font-size: var(--fs-lg); }
+  .body-results > .frame .stat { padding: 0 0 0 var(--s3); border-top: 0; border-left: 1px solid var(--hair); }
+  .body-results > .frame .stat:first-child { padding-left: 0; border-left: 0; }
+  .body-results > .frame .stat b { font-size: var(--fs-md); }
   .body-results > .frame .stat i { margin-top: 2px; }
   .body-results > .judges { display: none; }
-  .page-results .verdict-value { font-size: clamp(40px, 12.6vh, 66px); margin: var(--s1) 0; }
+  .page-results .verdict-value { font-size: clamp(38px, 12vh, 62px); margin: var(--s1) 0; }
 }
 
