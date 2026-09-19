@@ -106,6 +106,8 @@ const MOTION = !(
 );
 
 const TWEEN_MS = 420;
+//: Must match the `.bd` opacity transition in the stylesheet.
+const BACKDROP_FADE_MS = 500;
 
 /** Ease-out: fast off the mark, settling onto the value. */
 function easeOut(t) {
@@ -153,22 +155,23 @@ function scheduleFallback(ms) {
 
 /** Animate a number towards `to`, reporting each frame to `apply`.
  *
- * The current value is interpolated from, not the last one painted, so a new
- * target arriving mid-flight (song select recalculates pp as you scroll)
- * turns into a continuation rather than a jump back to the start.
+ * The travel starts from whatever is currently on screen, read back out of the
+ * element. Seeding from the previous tween's value instead made every map
+ * change roll up from zero, because the first tween of a new map starts with
+ * nothing to interpolate from.
  */
-function tween(key, to, apply, duration = TWEEN_MS) {
+function tween(key, to, apply, duration = TWEEN_MS, el = null) {
   if (!Number.isFinite(to)) {
     running.delete(key);
     return;
   }
-  const existing = running.get(key);
   if (!MOTION || duration <= 0) {
     running.delete(key);
     apply(to);
     return;
   }
-  const from = existing ? existing.value : readTweened(key, apply);
+  const existing = running.get(key);
+  const from = existing ? existing.value : numberFromElement(el);
   if (Math.abs(to - from) < 0.005) {
     running.delete(key);
     apply(to);
@@ -190,27 +193,35 @@ function tween(key, to, apply, duration = TWEEN_MS) {
   scheduleFallback(duration);
 }
 
-/** Where a tween that is not running should start from: the value on screen. */
-const tweenSeed = new Map();
-function readTweened(key, apply) {
-  return tweenSeed.has(key) ? tweenSeed.get(key) : 0;
-}
-function seedTween(key, value) {
-  tweenSeed.set(key, value);
-}
-
-/** Animate a text figure, formatting every frame so the digits roll. */
+/** Animate a text figure, formatting every frame so the digits roll.
+ *
+ * A figure that is currently unknown holds what it shows rather than blanking:
+ * osu! clears the pp block the instant a different map is selected, so the
+ * first frames after a map change carry no value at all. Writing the
+ * placeholder there made every map change read as *blank, then jump*; holding
+ * keeps the old number up until the new one is known, and the roll then starts
+ * from it, which is the whole point of rolling.
+ */
 function tweenNumber(key, to, el, format) {
-  if (to === null || to === undefined || !Number.isFinite(to) || to <= 0) {
-    running.delete(key);
-    seedTween(key, 0);
-    setText(el, '—');
+  if (!el) return;
+  if (!Number.isFinite(to) || to <= 0) {
+    if (!el.textContent) setText(el, '—');
     return;
   }
-  tween(key, to, (v) => {
-    seedTween(key, v);
-    setText(el, format(v));
-  });
+  tween(key, to, (v) => setText(el, format(v)), TWEEN_MS, el);
+}
+
+/** The number an element is currently showing, so a new tween can start there.
+ *
+ * Formatted text is all that is available -- "264.72", "#128", "98.42%" -- so
+ * the digits are picked out of it. A figure showing a placeholder yields 0,
+ * which is the right starting point for one that has never had a value.
+ */
+function numberFromElement(el) {
+  if (!el || !el.textContent) return 0;
+  const digits = String(el.textContent).replace(/[^0-9.]/g, '');
+  const value = parseFloat(digits);
+  return Number.isFinite(value) ? value : 0;
 }
 
 /** Drive a registered custom property; the transition in the stylesheet does
@@ -331,11 +342,19 @@ function fitScoreToWidth(el, { min = 18, maxScale = 1 } = {}) {
  * directly shows the layer's backdrop colour for as long as the download
  * takes, which on a phone over Wi-Fi is a plainly visible flash -- and these
  * are full-size beatmap backgrounds, so it is not a short one.
+ *
+ * Only one cross-fade may be in flight at a time, and the layer that has faded
+ * out is emptied shortly after. A phone decoding two full-size backgrounds at
+ * once is a lot of memory to hold for decoration; iOS in particular reacts to
+ * that by discarding the page, which is what a repeat visit to this screen was
+ * doing.
  */
 const backdropLayers = Array.from(document.querySelectorAll('#backdrop .bd'));
 let backdropTop = 0;
 let backdropKey = '';
+let backdropShown = '';
 let backdropToken = 0;
+let backdropRelease = 0;
 
 function applyBackdrop(front, url) {
   front.style.backgroundImage = url ? `url("${url}")` : '';
@@ -344,28 +363,47 @@ function applyBackdrop(front, url) {
   }
 }
 
+function scheduleBackdropRelease() {
+  if (backdropRelease) clearTimeout(backdropRelease);
+  backdropRelease = setTimeout(() => {
+    backdropRelease = 0;
+    const hidden = backdropLayers[1 - backdropTop];
+    if (hidden) hidden.style.backgroundImage = '';
+  }, BACKDROP_FADE_MS + 200);
+}
+
 function setBackdrop(beatmap) {
   const folder = beatmap && beatmap.folder;
   const background = beatmap && beatmap.background;
   const key = folder && background ? `${folder}/${background}` : '';
+
+  // While a cross-fade is running, an empty key is a transition artefact --
+  // osu! clears the beatmap object for a frame or two between maps -- not the
+  // map being deselected. Keep what is on screen.
+  if (!key && backdropShown && backdropToken) return;
   if (key === backdropKey) return;
   backdropKey = key;
 
   if (!key) {
+    if (backdropRelease) { clearTimeout(backdropRelease); backdropRelease = 0; }
+    backdropToken = 0;
+    backdropShown = '';
     backdropTop = 0;
+    for (const layer of backdropLayers) layer.style.backgroundImage = '';
     applyBackdrop(backdropLayers[0], '');
     return;
   }
 
-  const url = `/api/background?v=${encodeURIComponent(key)}`;
+  // Abandon a load already in flight: a new map is being selected, and two
+  // decoded backgrounds is the memory cost this is trying to avoid.
   const token = ++backdropToken;
   const front = backdropLayers[1 - backdropTop];
   const show = () => {
-    // A newer map was selected while this one was loading; drop this result
-    // rather than flashing art for a map that is no longer selected.
     if (token !== backdropToken) return;
     backdropTop = 1 - backdropTop;
-    applyBackdrop(front, url);
+    backdropShown = key;
+    applyBackdrop(front, `/api/background?v=${encodeURIComponent(key)}`);
+    scheduleBackdropRelease();
   };
 
   // Without an Image constructor there is nothing to preload into; painting
@@ -379,7 +417,7 @@ function setBackdrop(beatmap) {
   image.onerror = () => {
     if (token === backdropToken) applyBackdrop(backdropLayers[backdropTop], '');
   };
-  image.src = url;
+  image.src = `/api/background?v=${encodeURIComponent(key)}`;
 }
 
 /* ─────────────────────────────────────────────────────── page selection */
@@ -560,9 +598,7 @@ function renderSelect(state) {
   tweenNumber('sel.fc', Number((pp.max || {}).pp) || 0, els['sel-pp-fc'], (v) => nf2.format(v));
   for (const acc of ['99', '98', '95']) {
     const value = Number(accList[acc]) || 0;
-    const el = els[`sel-pp-${acc}`];
-    if (value > 0) tweenNumber(`sel.pp${acc}`, value, el, (v) => nf2.format(v));
-    else { running.delete(`sel.pp${acc}`); seedTween(`sel.pp${acc}`, 0); setText(el, '—'); }
+    tweenNumber(`sel.pp${acc}`, value, els[`sel-pp-${acc}`], (v) => nf2.format(v));
   }
 
   // The pp ladder is where the picking actually happens, so every accuracy gets

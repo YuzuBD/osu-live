@@ -132,7 +132,6 @@ body { height: 100vh; height: 100dvh; }
   background: center / cover no-repeat;
   opacity: 0;
   transition: opacity .5s ease;
-  will-change: opacity;
 }
 
 .bd.on { opacity: 1; }
@@ -478,8 +477,10 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 
 .stars { display: flex; align-items: center; gap: var(--s4); min-width: 0; }
 
-/* Registered so the arc can be animated; see the note on --w above. Placed
- * before it in the file only for readability -- registration is global. */
+/* Registered so the arc can interpolate; unregistered it is a string and the
+ * transition is simply dropped. Safari before 16.4 has no @property -- it
+ * ignores the at-rule, the arc still draws, it just arrives without
+ * travelling, so this is an enhancement rather than a requirement. */
 @property --p {
   syntax: "<number>";
   inherits: false;
