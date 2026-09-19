@@ -275,11 +275,27 @@ function modsHtml(mods, emptyLabel = 'NoMod') {
   return list.map((m) => `<span class="mod">${escapeHtml(m)}</span>`).join('');
 }
 
+/* A map carries two sets of names: the romanised Artist/Title osu! uses for
+ * sorting and filenames, and the original ArtistUnicode/TitleUnicode. The
+ * original is what the map calls itself and what a player recognises, so it
+ * wins wherever there is one; the romanised form is the fallback for the
+ * majority of maps that have no separate original. */
+function artistOf(beatmap) {
+  return (beatmap && (beatmap.artist_unicode || beatmap.artist)) || '';
+}
+
+function titleOf(beatmap) {
+  return (beatmap && (beatmap.title_unicode || beatmap.title)) || '';
+}
+
 function mapTitle(beatmap) {
-  if (!beatmap || (!beatmap.title && !beatmap.filename)) return '—';
-  return beatmap.title
-    ? `${beatmap.artist} - ${beatmap.title}`
-    : beatmap.filename.replace(/\.osu$/, '');
+  const title = titleOf(beatmap);
+  if (!title) {
+    if (!beatmap || !beatmap.filename) return '—';
+    return beatmap.filename.replace(/\.osu$/, '');
+  }
+  const artist = artistOf(beatmap);
+  return artist ? `${artist} - ${title}` : title;
 }
 
 function tagsHtml(pairs) {
@@ -572,8 +588,8 @@ function renderSelect(state) {
     selectMapKey = mapKey;
     // The identity of the map swaps outright; the figures below roll to their
     // new values, which reads as the data catching up to the title.
-    setText(els['sel-artist'], beatmap.artist || '—');
-    setText(els['sel-title'], beatmap.title || (beatmap.filename ? mapTitle(beatmap) : '未选择谱面'));
+    setText(els['sel-artist'], artistOf(beatmap) || '—');
+    setText(els['sel-title'], titleOf(beatmap) || (beatmap.filename ? mapTitle(beatmap) : '未选择谱面'));
     setText(els['sel-diff'], beatmap.difficulty ? `[${beatmap.difficulty}]` : '—');
     setText(els['sel-mapper'], beatmap.creator || '未知');
     setText(els['sel-objects'], beatmap.object_count ? nf.format(beatmap.object_count) : '—');
@@ -845,9 +861,12 @@ const DEMO_PLAYER = {
   ranked_score: 812_345_678, pp: 4597, play_mode: 0, bancho_status: 'idle',
 };
 const DEMO_BEATMAP = {
-  artist: 'yuikonnu', title: 'Kakushigoto', difficulty: 'Insane',
-  creator: 'jonathanlfj', ar: 9, cs: 4, hp: 7, od: 8, object_count: 995,
-  map_id: 315260, folder: '', background: '',
+  artist: 'irohaRingo feat. flower', title: 'Why I hate you', difficulty: "O K U's Ex",
+  // The originals for this map, so the demo exercises the same path a
+  // non-English map takes rather than always falling back.
+  artist_unicode: 'いろは蘋果 feat. flower', title_unicode: '歪なわけ、教えてあげる',
+  creator: 'Ryuusei Aika', ar: 9, cs: 4, hp: 7, od: 8, object_count: 995,
+  map_id: 0, folder: '', background: '',
 };
 const DEMO_PP = {
   error: null,

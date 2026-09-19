@@ -48,6 +48,27 @@ LAST_SCORE_PATH = Path(__file__).resolve().parent.parent / ".last_score.json"
 #: osu! process names, stable first.
 OSU_PROCESS_NAMES = ("osu!.exe",)
 
+#: ``Beatmap`` members.
+#:
+#: The unicode name fields sit immediately after their romanised counterparts
+#: (0x18/0x1C and 0x24/0x28). Located by reading both off a live object and
+#: checking them against the same map's ``.osu`` metadata, not by guessing: a
+#: wrong offset here yields a plausible-looking string rather than a failure.
+_BEATMAP_ARTIST = 0x18
+_BEATMAP_ARTIST_UNICODE = 0x1C
+_BEATMAP_TITLE = 0x24
+_BEATMAP_TITLE_UNICODE = 0x28
+_BEATMAP_BACKGROUND = 0x68
+_BEATMAP_CHECKSUM = 0x6C
+_BEATMAP_FOLDER = 0x78
+_BEATMAP_CREATOR = 0x7C
+_BEATMAP_FILENAME = 0x90
+_BEATMAP_DIFFICULTY = 0xAC
+_BEATMAP_MAP_ID = 0xC8
+_BEATMAP_SET_ID = 0xCC
+_BEATMAP_OBJECT_COUNT = 0xF8
+_BEATMAP_RANKED_STATUS = 0x12C
+
 #: ``Ruleset`` members.
 _RULESET_GAMEPLAY_NEW = 0x64
 _RULESET_GAMEPLAY_OLD = 0x68
@@ -136,6 +157,12 @@ class BeatmapInfo:
     background: str = ""
     artist: str = ""
     title: str = ""
+    #: The map's own names. ``Artist``/``Title`` are the romanised forms osu!
+    #: uses for sorting and for filenames; these are what the map calls itself,
+    #: and what a player recognises. Empty when the map carries no separate
+    #: original -- most English-language maps do not.
+    artist_unicode: str = ""
+    title_unicode: str = ""
     difficulty: str = ""
     creator: str = ""
     ar: float = 0.0
@@ -148,12 +175,23 @@ class BeatmapInfo:
     ranked_status: int = 0
 
     @property
+    def display_artist(self) -> str:
+        return self.artist_unicode or self.artist
+
+    @property
+    def display_title(self) -> str:
+        return self.title_unicode or self.title
+
+    @property
     def full_name(self) -> str:
-        if not self.title:
+        """``artist - title [difficulty]``, in the map's original names."""
+        title = self.display_title
+        if not title:
             return ""
+        artist = self.display_artist
         if self.difficulty:
-            return f"{self.artist} - {self.title} [{self.difficulty}]".strip(" -")
-        return f"{self.artist} - {self.title}".strip(" -")
+            return f"{artist} - {title} [{self.difficulty}]".strip(" -")
+        return f"{artist} - {title}".strip(" -")
 
 
 @dataclass
@@ -555,7 +593,7 @@ class OsuReader:
         except MemoryError_ as exc:
             self._note_once("beatmap", str(exc))
             return self._beatmap_cache[1] if self._beatmap_cache else BeatmapInfo()
-        if info.filename or info.title:
+        if info.filename or info.title or info.title_unicode:
             self._cleared("beatmap")
         else:
             self._note_once("beatmap", "beatmap resolved to an empty record")
@@ -946,22 +984,24 @@ def _read_beatmap(process: Process, pattern_base: int) -> BeatmapInfo:
     read_string = process.read_csharp_string
     try:
         info = BeatmapInfo(
-            checksum=read_string(process.read_u32(beatmap + 0x6C)),
-            filename=read_string(process.read_u32(beatmap + 0x90)),
-            folder=read_string(process.read_u32(beatmap + 0x78)),
-            background=read_string(process.read_u32(beatmap + 0x68)),
-            artist=read_string(process.read_u32(beatmap + 0x18)),
-            title=read_string(process.read_u32(beatmap + 0x24)),
-            difficulty=read_string(process.read_u32(beatmap + 0xAC)),
-            creator=read_string(process.read_u32(beatmap + 0x7C)),
+            checksum=read_string(process.read_u32(beatmap + _BEATMAP_CHECKSUM)),
+            filename=read_string(process.read_u32(beatmap + _BEATMAP_FILENAME)),
+            folder=read_string(process.read_u32(beatmap + _BEATMAP_FOLDER)),
+            background=read_string(process.read_u32(beatmap + _BEATMAP_BACKGROUND)),
+            artist=read_string(process.read_u32(beatmap + _BEATMAP_ARTIST)),
+            title=read_string(process.read_u32(beatmap + _BEATMAP_TITLE)),
+            artist_unicode=read_string(process.read_u32(beatmap + _BEATMAP_ARTIST_UNICODE)),
+            title_unicode=read_string(process.read_u32(beatmap + _BEATMAP_TITLE_UNICODE)),
+            difficulty=read_string(process.read_u32(beatmap + _BEATMAP_DIFFICULTY)),
+            creator=read_string(process.read_u32(beatmap + _BEATMAP_CREATOR)),
             ar=process.read_f32(beatmap + 0x2C),
             cs=process.read_f32(beatmap + 0x30),
             hp=process.read_f32(beatmap + 0x34),
             od=process.read_f32(beatmap + 0x38),
-            map_id=process.read_i32(beatmap + 0xC8),
-            set_id=process.read_i32(beatmap + 0xCC),
-            object_count=process.read_i32(beatmap + 0xF8),
-            ranked_status=process.read_i32(beatmap + 0x12C),
+            map_id=process.read_i32(beatmap + _BEATMAP_MAP_ID),
+            set_id=process.read_i32(beatmap + _BEATMAP_SET_ID),
+            object_count=process.read_i32(beatmap + _BEATMAP_OBJECT_COUNT),
+            ranked_status=process.read_i32(beatmap + _BEATMAP_RANKED_STATUS),
         )
     except MemoryError_ as exc:
         # Any single field failing means the whole record is suspect, and a

@@ -306,6 +306,38 @@ def test_read_once_then_cleared():
         R.set_failure_sink(None)
 
 
+def test_names_prefer_the_original():
+    """A map is shown under its own names, not the romanised ones.
+
+    osu! keeps both: Artist/Title are romanised for sorting and filenames,
+    ArtistUnicode/TitleUnicode are what the map calls itself. The original is
+    what a player recognises, so it wins; the romanised form is the fallback
+    for the maps that have no separate original.
+    """
+    japanese = R.BeatmapInfo(
+        artist="irohaRingo feat. flower", title="Why I hate you",
+        artist_unicode="\u3044\u308d\u306f\u860b\u679c feat. flower",
+        title_unicode="\u6b6a\u306a\u308f\u3051",
+        difficulty="O K U's Ex",
+    )
+    check("artist shown in the original", japanese.display_artist,
+          "\u3044\u308d\u306f\u860b\u679c feat. flower")
+    check("title shown in the original", japanese.display_title, "\u6b6a\u306a\u308f\u3051")
+    check("full name uses the originals", japanese.full_name,
+          "\u3044\u308d\u306f\u860b\u679c feat. flower - \u6b6a\u306a\u308f\u3051 [O K U's Ex]")
+
+    # Most English-language maps carry no separate original, so the romanised
+    # field is what has to be shown.
+    english = R.BeatmapInfo(artist="Camellia", title="Ghost", difficulty="Extreme")
+    check("romansed artist falls through", english.display_artist, "Camellia")
+    check("romanised title falls through", english.display_title, "Ghost")
+    check("full name falls through", english.full_name, "Camellia - Ghost [Extreme]")
+
+    # A map with no title at all must not render a stray separator.
+    empty = R.BeatmapInfo()
+    check("empty map has no name", empty.full_name, "")
+
+
 if __name__ == "__main__":
     for fn in [
         test_gameplay_base_revalidates_remembered_layout,
@@ -318,6 +350,7 @@ if __name__ == "__main__":
         test_recycled_beatmap_yields_no_partial_record,
         test_checksum_guard,
         test_partial_record_is_rejected_before_the_digest,
+        test_names_prefer_the_original,
         test_read_once_then_cleared,
     ]:
         print(f"\n{fn.__name__}")
