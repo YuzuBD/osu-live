@@ -1,0 +1,5 @@
+@import url("../style.css");
+
+
+.page { position: absolute !important; }
+.page.active { position: absolute !important; grid-template-rows: auto 1fr auto !important; }

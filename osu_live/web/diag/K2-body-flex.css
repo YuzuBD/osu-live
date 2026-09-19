@@ -1,0 +1,7 @@
+@import url("../style.css");
+
+
+.body { display: flex !important; flex-direction: column !important; }
+.sel-left, .sel-right { display: flex !important; flex-direction: column !important; }
+.body-results, .body-home { display: flex !important; flex-direction: column !important; }
+.body-play { display: flex !important; flex-direction: column !important; }

@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>第二轮 · grid 二分</title>
+<title>第三轮 · grid 层级</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; padding: 14px; background: #0b0a0d; color: #f5f4f7;
          font: 15px/1.55 -apple-system, system-ui, sans-serif; }
   h1 { font-size: 18px; margin: 0 0 2px; }
   p.lead { color: rgba(245,244,247,.62); font-size: 13px; margin: 0 0 12px; }
-  .done { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;
+  .done { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px;
           background: rgba(110,226,135,.10); border: 1px solid rgba(110,226,135,.35); }
   .done b { color: #7ee08a; }
   ol { padding: 0; margin: 0; list-style: none; }
@@ -22,35 +22,31 @@
   small { display: block; color: rgba(245,244,247,.52); font-weight: 400; margin-top: 2px; }
   .tip { margin-top: 15px; padding: 11px 13px; background: rgba(255,95,162,.10);
          border: 1px solid rgba(255,95,162,.3); border-radius: 8px; font-size: 13px; }
-  table { border-collapse: collapse; font-size: 13px; margin-top: 6px; width: 100%; }
-  td { padding: 3px 0; vertical-align: top; }
-  td:first-child { color: rgba(245,244,247,.6); white-space: nowrap; padding-right: 10px; }
   code { font-size: 12px; color: #ffc74d; }
 </style>
 </head>
 <body>
-<h1>第二轮 · grid 二分</h1>
+<h1>第三轮 · grid 在哪一层</h1>
 
 <div class="done">
-  <b>已确定：</b>问题在横屏媒体查询里的 <b>grid 布局</b>。删掉整个横屏查询正常；
-  横屏 grid 退回 flex 也正常。<br>
-  这一轮把 grid 的用法拆成五条，每条一个变体。
+  <b>已确定：</b>M1–M5 全崩，说明跟具体的 grid 属性无关；M6 把 <code>.page</code> 和
+  <code>.body</code> <b>两层</b>的 grid 都换成 flex 才正常。<br>
+  所以这一轮把两层分开，找出最小改动。
 </div>
 
-<p class="lead"><b>请在横屏下直接打开本页</b>（不要先竖屏再转），然后逐个点。</p>
+<p class="lead"><b>请在横屏下直接打开本页</b>，然后逐个点。这一轮只有三个。</p>
 
 <ol>
-  <li><a href="M6-no-grid.html">M6 退回 flex<small>对照——预期正常，用来确认环境没变。</small></a></li>
-  <li><a href="M1-unconditional.html">M1 横屏规则无条件生效<small>规则照旧，只是不再包在媒体查询里。崩 → 是查询求值；不崩 → 是规则内容。</small></a></li>
-  <li><a href="M2-no-var-tracks.html">M2 grid 轨道不用 var()<small>把 <code>var(--head-band-height, …)</code> 换成固定像素。</small></a></li>
-  <li><a href="M3-no-minmax.html">M3 不用 minmax()<small>把 <code>minmax(0, 1fr)</code> 换成 <code>auto</code>。</small></a></li>
-  <li><a href="M4-no-align.html">M4 不改 align-content<small>去掉横屏里的 <code>align-content</code> 覆盖。</small></a></li>
-  <li><a href="M5-band-padding.html">M5 标题带改用 padding<small>不再用 grid 行预留标题高度。</small></a></li>
+  <li><a href="K1-page-flex.html">K1 只有 .page 用 flex<small>内容布局（.body 的 grid）完全保留，只把外层换掉。</small></a></li>
+  <li><a href="K2-body-flex.html">K2 只有 .body 用 flex<small>反过来：外层 grid 保留。</small></a></li>
+  <li><a href="K3-grid-static-page.html">K3 grid 全保留，只把 fixed 换掉<small>测试"fixed 容器里放 grid"这个组合。</small></a></li>
 </ol>
 
 <div class="tip">
-  <b>只需回一句话：</b>哪几个正常、哪几个崩。例如「M6 M2 M5 正常，其余崩」。<br>
-  顶部粉色横幅标着编号，方便确认打开的是哪个。
+  <b>只需回一句话：</b>哪几个能开。<br><br>
+  如果 <b>K1 能开</b>，那修复就很小——外层换 flex，内容布局一行都不用动。<br>
+  如果 <b>K3 能开</b>，那问题是 fixed + grid 的组合，改动更小。<br>
+  如果三个全崩，我就直接用 flex 重写横屏布局（已验证可行）。
 </div>
 </body>
 </html>

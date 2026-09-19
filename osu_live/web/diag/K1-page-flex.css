@@ -1,0 +1,17 @@
+@import url("../style.css");
+
+
+.page.active {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.page > .body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding-top: var(--head-band-height, 86px) !important;
+}
+/* The body grids no longer have a reserved band row to sit above, so their
+   first track returns to sizing itself. */
+.body-home, .body-select { grid-template-rows: auto auto !important; }
+.body-play { grid-template-rows: auto auto !important; }
