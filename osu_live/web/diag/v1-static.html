@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>v1 static</title>
+<style>
+  /* v1: the smallest thing that could be called this app's layout.
+     No dvh, no filter, no gradient, no fixed positioning, no script.
+     If this crashes, the problem is the device or the network, not the page. */
+  :root { --bg: #0b0a0d; --ink: #f5f4f7; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+               font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+  .wrap { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+  .head { border-bottom: 1px solid rgba(255,255,255,.09); padding-bottom: 8px; }
+  h1 { font-size: 26px; margin: 4px 0 0; }
+  .eyebrow { font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+             color: rgba(245,244,247,.44); }
+  .figure { font-size: 52px; font-weight: 800; color: #ff92c4; line-height: 1; }
+  .row { display: flex; gap: 12px; }
+  .cell { flex: 1; border-left: 1px solid rgba(255,255,255,.09); padding-left: 12px; }
+  .cell b { display: block; font-size: 20px; }
+  .cell i { font-style: normal; font-size: 10px; letter-spacing: .16em;
+            text-transform: uppercase; color: rgba(245,244,247,.44); }
+  .bar { height: 3px; background: rgba(255,255,255,.1); }
+  .bar span { display: block; height: 100%; width: 40%; background: #ff5fa2; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="eyebrow">v1 纯静态 · いろは蘋果 feat. flower</div>
+    <h1>歪なわけ、教えてあげる</h1>
+  </div>
+  <div class="figure">264.72</div>
+  <div class="row">
+    <div class="cell"><b>9.00</b><i>AR</i></div>
+    <div class="cell"><b>8.00</b><i>OD</i></div>
+    <div class="cell"><b>4.00</b><i>CS</i></div>
+    <div class="cell"><b>7.00</b><i>HP</i></div>
+  </div>
+  <div class="bar"><span></span></div>
+</div>
+</body>
+</html>

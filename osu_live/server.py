@@ -148,6 +148,9 @@ class OverlayHandler(BaseHTTPRequestHandler):
             self._send_error_json(HTTPStatus.FORBIDDEN, "invalid path")
             return
         target = WEB_ROOT / relative
+        # A directory serves its own index, so /diag/ works like / does.
+        if target.is_dir():
+            target = target / "index.html"
         if not target.is_file():
             self._send_error_json(HTTPStatus.NOT_FOUND, f"no such file: {path}")
             return

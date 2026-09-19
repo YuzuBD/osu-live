@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>v4 no-dvh</title>
+<style>
+  html, body { margin: 0; background: #0b0a0d; color: #f5f4f7;
+               font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  .bar { padding: 10px 14px; font-size: 13px; background: rgba(255,95,162,.12);
+         border-bottom: 1px solid rgba(255,95,162,.3); }
+  .bar b { color: #ff92c4; }
+  iframe { display: block; width: 100%; height: calc(100dvh - 60px); border: 0; }
+  .fallback { padding: 16px; font-size: 14px; color: rgba(245,244,247,.6); }
+</style>
+</head>
+<body>
+<div class="bar">v4 · <b>禁用 dvh 与 fixed</b> —— 崩的话就是动态视口单位或固定定位</div>
+<iframe id="f" src="../index.html?demo=select"></iframe>
+<div class="fallback" id="fb" hidden></div>
+
+<script>
+/* One override: no dynamic viewport units, no fixed positioning.
+ *
+ * `100dvh` re-resolves against the browser chrome on iOS, and this page also
+ * pins several full-screen layers with `position: fixed`. Both are known to
+ * interact badly with the URL bar collapsing. */
+const OVERRIDE = `
+  html, body { height: 100% !important; }
+  .page, .scrim, .grain, .offline, .backdrop, .bd, .token-row {
+    position: absolute !important;
+  }
+  .page { height: auto !important; min-height: 100% !important; inset: auto !important; top: 0; left: 0; right: 0; bottom: auto !important; }
+  .scrim, .grain, .backdrop { inset: 0 !important; }
+`;
+
+const f = document.getElementById('f');
+const fb = document.getElementById('fb');
+let applied = false;
+
+f.addEventListener('load', () => {
+  applied = false;
+  setTimeout(() => {
+    if (applied) return;
+    try {
+      const d = f.contentDocument;
+      const style = d.createElement('style');
+      style.textContent = OVERRIDE;
+      d.head.appendChild(style);
+      applied = true;
+      fb.hidden = false;
+      fb.textContent = '覆盖已注入。1 秒后开始每 400ms 换一张图。';
+      let n = 0;
+      const t = setInterval(() => {
+        try {
+          const w = f.contentWindow;
+          if (!w.osuLive) return;
+          n++;
+          const which = n % 2 === 0;
+          const s = w.osuLive.demoState('select');
+          s.beatmap.folder = which ? 'a' : 'b';
+          s.beatmap.background = which ? 'a.jpg' : 'b.jpg';
+          w.osuLive.render(s);
+          fb.textContent = '已换图 ' + n + ' 次。若 15 次后仍在跳，本项安全。';
+          if (n >= 15) { clearInterval(t); fb.textContent = '✓ 完成 15 次换图，本项安全。'; }
+        } catch (e) { clearInterval(t); fb.textContent = '换图时出错：' + e; }
+      }, 400);
+    } catch (e) {
+      fb.hidden = false;
+      fb.textContent = '注入失败：' + e;
+    }
+  }, 600);
+});
+</script>
+</body>
+</html>

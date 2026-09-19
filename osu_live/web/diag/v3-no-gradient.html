@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>v3 no-gradient</title>
+<style>
+  html, body { margin: 0; background: #0b0a0d; color: #f5f4f7;
+               font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  .bar { padding: 10px 14px; font-size: 13px; background: rgba(255,95,162,.12);
+         border-bottom: 1px solid rgba(255,95,162,.3); }
+  .bar b { color: #ff92c4; }
+  iframe { display: block; width: 100%; height: calc(100dvh - 60px); border: 0; }
+  .fallback { padding: 16px; font-size: 14px; color: rgba(245,244,247,.6); }
+</style>
+</head>
+<body>
+<div class="bar">v3 · <b>禁用渐变与模糊</b> —— 崩的话就是 conic/linear-gradient 或 filter</div>
+<iframe id="f" src="../index.html?demo=select"></iframe>
+<div class="fallback" id="fb" hidden></div>
+
+<script>
+/* One override, injected into the real page: every gradient and every filter
+ * becomes flat colour.
+ *
+ * A user stylesheet is applied after the page's own CSS has been parsed, and
+ * !important beats it, so the page is otherwise byte-for-byte the one that
+ * crashes. `background-image: none` is the lever because gradients are images
+ * in CSS -- the flat `background-color` underneath is left in place. */
+const OVERRIDE = `
+  *, *::before, *::after {
+    background-image: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+  .stars-ring { background: #1a1a20 !important; }
+  .rung { background: #1a1a20 !important; }
+  .track-fill { background: #ff5fa2 !important; }
+  .hp-fill { background: #6ee287 !important; }
+  .verdict-grade { background: transparent !important; }
+`;
+
+const f = document.getElementById('f');
+const fb = document.getElementById('fb');
+let applied = false;
+
+function apply() {
+  if (applied) return;
+  try {
+    const d = f.contentDocument;
+    if (!d || !d.head) return;
+    const style = d.createElement('style');
+    style.textContent = OVERRIDE;
+    d.head.appendChild(style);
+    applied = true;
+    fb.hidden = false;
+    fb.textContent = '覆盖已注入。1 秒后开始每 400ms 换一张图（换图是最重的操作）。';
+    let n = 0;
+    const t = setInterval(() => {
+      try {
+        const w = f.contentWindow;
+        if (!w.osuLive) return;
+        n++;
+        // Alternate between two maps so the backdrop and every figure move.
+        const which = n % 2 === 0;
+        const s = w.osuLive.demoState('select');
+        s.beatmap.title_unicode = which ? '歪なわけ、教えてあげる' : 'テスト';
+        s.beatmap.folder = which ? 'a' : 'b';
+        s.beatmap.background = which ? 'a.jpg' : 'b.jpg';
+        w.osuLive.render(s);
+        fb.textContent = '已换图 ' + n + ' 次。若 15 次后仍在跳，本项安全。';
+        if (n >= 15) { clearInterval(t); fb.textContent = '✓ 完成 15 次换图，本项安全。'; }
+      } catch (e) {
+        clearInterval(t);
+        fb.textContent = '换图时出错：' + e;
+      }
+    }, 400);
+  } catch (e) {
+    fb.hidden = false;
+    fb.textContent = '注入失败：' + e;
+  }
+}
+
+f.addEventListener('load', () => { applied = false; setTimeout(apply, 600); });
+</script>
+</body>
+</html>

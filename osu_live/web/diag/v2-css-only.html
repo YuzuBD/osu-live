@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>v2 css-only</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0a0d; color: #f5f4f7;
+               font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  .bar { padding: 10px 14px; font-size: 13px; background: rgba(255,95,162,.12);
+         border-bottom: 1px solid rgba(255,95,162,.3); }
+  .bar b { color: #ff92c4; }
+  iframe { display: block; width: 100%; height: calc(100% - 60px);
+           height: calc(100dvh - 60px); border: 0; }
+  .fallback { padding: 16px; font-size: 14px; color: rgba(245,244,247,.6); }
+</style>
+</head>
+<body>
+<div class="bar">v2 · <b>只加载 CSS，不加载脚本</b> —— 崩的话说明是样式，不是脚本</div>
+<iframe id="f"></iframe>
+<div class="fallback" id="fb" hidden></div>
+
+<script>
+/* Same real page, but the script tag is refused.
+ *
+ * The page is fetched as text and the <script> element removed, then written
+ * into the frame. The stylesheet still loads from the server, so this isolates
+ * "does the CSS alone take iOS down" from anything the script does. */
+const f = document.getElementById('f');
+const fb = document.getElementById('fb');
+
+fetch('../index.html?demo=select')
+  .then((r) => r.text())
+  .then((html) => {
+    const stripped = html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<script\b[^>]*\/>/gi, '');
+    f.srcdoc = stripped;
+    setTimeout(() => {
+      fb.hidden = false;
+      fb.textContent = '如果你还能看到这行（在选择页出现之后），说明纯 CSS 是安全的。';
+    }, 6000);
+  })
+  .catch((e) => {
+    fb.hidden = false;
+    fb.textContent = '加载 index.html 失败：' + e;
+  });
+</script>
+</body>
+</html>
