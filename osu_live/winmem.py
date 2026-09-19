@@ -15,6 +15,8 @@ kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
+#: Enough to read a process's executable path, and less than the above.
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 MEM_COMMIT = 0x1000
 PAGE_READWRITE = 0x04
@@ -75,6 +77,13 @@ kernel32.Process32First.argtypes = (wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY
 kernel32.Process32Next.argtypes = (wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32))
 kernel32.IsWow64Process.restype = wintypes.BOOL
 kernel32.IsWow64Process.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL))
+kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+kernel32.QueryFullProcessImageNameW.argtypes = (
+    wintypes.HANDLE,
+    wintypes.DWORD,
+    wintypes.LPWSTR,
+    ctypes.POINTER(wintypes.DWORD),
+)
 
 
 class MemoryError_(RuntimeError):
@@ -152,6 +161,31 @@ def list_processes(names: Sequence[str]) -> list[tuple[int, str]]:
     finally:
         kernel32.CloseHandle(snapshot)
     return found
+
+
+#: Enough for any real path; the API takes the buffer size in/out.
+_PATH_BUFFER = 32768
+
+
+def process_path(pid: int) -> str:
+    """Full path of a running process's executable, or "" if unreadable.
+
+    Uses PROCESS_QUERY_LIMITED_INFORMATION rather than the read rights the
+    memory paths need -- the executable's location is metadata, and asking for
+    the least that answers the question is what lets this succeed against a
+    client running at a different integrity level.
+    """
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return ""
+    try:
+        size = wintypes.DWORD(_PATH_BUFFER)
+        buffer = ctypes.create_unicode_buffer(_PATH_BUFFER)
+        if not kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            return ""
+        return buffer.value
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 class Process:

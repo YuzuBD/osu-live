@@ -79,8 +79,15 @@ def main(argv: list[str] | None = None) -> int:
         print("  token   required (?token=… or Authorization: Bearer …)")
     if config.songs_folder:
         print(f"  songs   {config.songs_folder}")
+    else:
+        # Without this the overlay just shows no pp and no artwork, which
+        # looks like a broken program rather than a missing setting.
+        print("  songs   NOT FOUND -- pp and the map artwork need it")
+        print("          set SONGS_FOLDER in .env, or start osu! first")
     if config.bancho_api_url:
         print(f"  bancho  {config.bancho_api_url} ({config.bancho_player or 'no player set'})")
+        if not config.avatar_url:
+            print("  avatar  not set -- the overlay has no avatar (AVATAR_URL)")
     print(f"  config  {DATA_ROOT}")
     print("\nPress Ctrl+C to stop.")
 
