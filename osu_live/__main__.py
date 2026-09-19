@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  bancho  {config.bancho_api_url} ({config.bancho_player or 'no player set'})")
         if not config.avatar_url:
             print("  avatar  not set -- the overlay has no avatar (AVATAR_URL)")
-    print(f"  config  {DATA_ROOT}")
+    print(f"  data    {DATA_ROOT}")
     print("\nPress Ctrl+C to stop.")
 
     stop = threading.Event()
