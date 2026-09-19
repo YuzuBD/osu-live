@@ -527,6 +527,21 @@ function showPage(page) {
 
 /* ───────────────────────────────────────────────────────────── rendering */
 
+/** Whether two beatmap blocks are the same map.
+ *
+ * The MD5 is the one field the game keeps as the map's identity; the others
+ * are fallbacks for a block that arrived without one. When nothing comparable
+ * is present the answer is "yes" -- refusing to show a result that cannot be
+ * disproved would be worse than showing it.
+ */
+function sameBeatmap(a, b) {
+  if (!a || !b) return true;
+  if (a.checksum && b.checksum) return a.checksum === b.checksum;
+  if (a.map_id && b.map_id) return a.map_id === b.map_id;
+  if (a.folder && b.folder) return a.folder === b.folder;
+  return true;
+}
+
 /* Judgement rails share their markup; only the class prefix differs. */
 function judgesHtml(hits) {
   const rows = [
@@ -735,9 +750,27 @@ function renderPlay(state) {
 
 function renderResults(state) {
   const score = shownResults;
-  if (!score) {
+  /* The stored score belongs on this screen only if it is the map osu! has
+   * loaded. It is written out while a map is being played, so anything left
+   * from an earlier map -- or from a play that happened while this program was
+   * not running -- would otherwise be shown as the result of whatever is on
+   * screen now. A wrong result reads as a broken overlay; saying there is none
+   * is both true and actionable.
+   *
+   * `score.beatmap` is the map that was played and `state.beatmap` is the map
+   * loaded now; on a results screen the two are the same map. */
+  const current = state.beatmap || {};
+  const stale = !!score && !sameBeatmap(score.beatmap, current);
+
+  if (!score || stale) {
     setText(els['res-song'], '暂无成绩');
-    setText(els['res-diff'], '打完一张图后这里会显示成绩');
+    /* States the fact and what it takes to record one. Not "the program was
+     * not running": that is the usual reason but not the only one, and a
+     * message that guesses at a cause is worse than one that explains the
+     * rule. */
+    setText(els['res-diff'], stale
+      ? '这一局没有被记录到 · 游戏进行时程序需要开着'
+      : '打完一张图后这里会显示成绩');
     setText(els['res-grade'], '—');
     els['res-grade'].dataset.grade = '';
     setText(els['res-score'], '—');

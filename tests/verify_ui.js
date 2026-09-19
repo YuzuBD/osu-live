@@ -143,6 +143,24 @@ const RR=run('results-arrives',scen.results);
 if(RR){chk('results render after hand-off',RR['res-grade'].text==='S');}
 chk('results arrived: overlay hidden', !t('offline').classList.contains('active'));
 
+console.log('\n== a stored score that is not this map\'s ==');
+/* The score is written out while a map is played, so what is on disk can be
+   left over from an earlier map -- or from a play that happened while this
+   program was not running. Shown as-is it is presented as the result of
+   whatever map is on screen now, which looks like the overlay inventing a
+   score rather than admitting it has none. */
+globalThis.__render({...scen.results, beatmap:{artist:'other', title:'另一张图', difficulty:'d', checksum:'0000000000000000000000000000dead'}});
+chk('not shown as this map\'s result', t('res-grade').textContent === '—', t('res-grade').textContent);
+chk('and says why', /游戏进行时程序需要开着/.test(t('res-diff').textContent), t('res-diff').textContent);
+chk('score cleared too', t('res-score').textContent === '—', t('res-score').textContent);
+globalThis.__render({...scen.results, beatmap:score.beatmap});
+chk('the same map still shows its score', t('res-grade').textContent === 'S', t('res-grade').textContent);
+chk('with no explanation line', t('res-diff').textContent === '[Insane] · mapped by jonathanlfj', t('res-diff').textContent);
+/* A block with nothing to compare must not be treated as a mismatch: refusing
+   to show a result that cannot be disproved is worse than showing it. */
+globalThis.__render({...scen.results, beatmap:{artist:'a', title:'t', difficulty:'d'}});
+chk('no identity to compare -> still shown', t('res-grade').textContent === 'S', t('res-grade').textContent);
+
 console.log('\n== genuine disconnect still surfaces ==');
 globalThis.__render({connected:false,error:'osu!.exe is not running',state:'unknown'});
 chk('not immediate (grace period)', !t('offline').classList.contains('active'));
