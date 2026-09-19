@@ -475,7 +475,7 @@ const PAGE_ORDER = ['home', 'select', 'play', 'results'];
  * animated from, so the exit needs the element to still exist; this is the
  * longest exit in the stylesheet (--pg-out, plus room for a late frame), and
  * has to be kept in step with it. */
-const PAGE_LEAVE_MS = 190;
+const PAGE_LEAVE_MS = 150;
 
 /* One pending release per screen, so a screen that comes back before its exit
  * has finished is not dropped by its own stale timer. */
@@ -490,7 +490,12 @@ function showPage(page) {
   // both keyframes, so the outgoing block continues the same travel.
   const dir = PAGE_ORDER.indexOf(page) > PAGE_ORDER.indexOf(previous) ? 1 : -1;
   const shell = document.querySelector('#shell');
-  if (shell) shell.style.setProperty('--pg-dir', String(dir));
+  if (shell) {
+    shell.style.setProperty('--pg-dir', String(dir));
+    /* The entry normally waits out the exit, but the first paint has nothing
+     * to wait for -- holding it back there only delays the overlay appearing. */
+    shell.style.setProperty('--pg-in-delay', previous ? '' : '0ms');
+  }
 
   for (const p of PAGE_ORDER) {
     const el = els[`page-${p}`];

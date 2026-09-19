@@ -86,19 +86,20 @@
   --tsh: 0 1px 3px rgba(0, 0, 0, .8), 0 2px 12px rgba(0, 0, 0, .45);
 
   /* ── screen transition ──────────────────────────────────────────────── */
-  /* The exit runs first and finishes quickly; the entry follows it block by
-   * block. `--pg-rise` is the distance a block travels, and `--pg-dir` is set
-   * to 1 or -1 by showPage() so a forward step rises and a backward one
-   * descends. Keep these in step with PAGE_LEAVE_MS in app.js: that constant
-   * is when the outgoing screen stops being laid out. */
-  --pg-out: 130ms;
-  --pg-in: 250ms;
+  /* A hand-over, not a dissolve: the exit finishes before the entry starts.
+   * `--pg-rise` is the distance a block travels, and `--pg-dir` is set to 1 or
+   * -1 by showPage() so a forward step rises and a backward one descends.
+   *
+   * `--pg-in-delay` must not be shorter than `--pg-out`, and `PAGE_LEAVE_MS`
+   * in app.js must not be shorter than `--pg-out` either. The three are the
+   * same fact in three places, and nothing but tests/ ties them together. */
+  --pg-out: 90ms;
+  --pg-in: 200ms;
+  --pg-in-delay: 100ms;
   /* Each block after the first starts one step later. The first starts at
-   * once: holding it back too left the middle of the screen empty while the
-   * outgoing blocks were still on their way out, which reads as a drop-out
-   * rather than a hand-over. */
-  --pg-step: 40ms;
-  --pg-rise: 14px;
+   * once: holding it back too leaves the middle of the screen empty. */
+  --pg-step: 30ms;
+  --pg-rise: 12px;
   --pg-ease: cubic-bezier(.22, .68, .24, 1);
 }
 
@@ -201,13 +202,20 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 .page.active { display: flex; }
 
 /* ── switching screens ───────────────────────────────────────────────────
- * The four screens share a shell: the identity band, the status rail and the
- * progress footer sit in the same place on all of them, and three of the four
- * carry the very same map title in that band. So the shell is left alone and
- * only the middle of the screen is animated. Cross-fading the shell along with
- * the content made the title and the clock blink on every switch, and moving
- * it doubled the title against its own ghost -- the band is absolutely
- * positioned, so a transform on any ancestor drags it too.
+ * A screen clears, then the next one fills in. It is deliberately NOT a
+ * dissolve.
+ *
+ * Every screen is a different composition: the title differs (song select
+ * shows the title alone where the others show artist - title, and at a
+ * different size), the figures differ, and the footer differs (results has no
+ * progress track). Two of those compositions legible at once, which is what a
+ * cross-fade produces, does not read as a transition -- it reads as doubled
+ * text sitting on top of itself.
+ *
+ * So only one screen is ever visible, and the whole of it moves: identity
+ * band, figures and footer. The one exception is the status rail, which is the
+ * only block whose text really is the same on all four screens; keeping it
+ * still holds the screen together while everything under it changes.
  *
  * `display: none` cannot be animated from, so a screen on its way out is held
  * laid out by `.leaving` for the length of its exit; `.active` sits above it
@@ -217,8 +225,12 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 .page.active { z-index: 2; }
 .page.leaving { display: flex; z-index: 1; pointer-events: none; }
 
-/* Two or three blocks per screen, in the order they should be read. The
- * blocks are the ones specific to a screen: everything else is the shell. */
+/* Everything a screen owns. The head and the foot are written both ways
+ * because song select nests its head inside a column rather than the body.
+ * The judgement rail is in here even though landscape hides it: portrait
+ * shows it, and a rail left out of this list stays at full opacity on both
+ * screens at once. */
+.page.active > .body .head,
 .page.active > .body > .account,
 .page.active > .body > .rail-stats,
 .page.active > .body > .live,
@@ -228,10 +240,17 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 .page.active > .body > .sel-left,
 .page.active > .body > .sel-right > .stars,
 .page.active > .body > .sel-right > .attrs,
-.page.active > .body > .sel-right > .chips {
-  animation: pg-in var(--pg-in) var(--pg-ease) both;
+.page.active > .body > .sel-right > .chips,
+.page.active > .body > .judges,
+.page.active > .foot {
+  animation: pg-in var(--pg-in) var(--pg-ease) backwards;
+  /* The whole entry waits for the exit to finish. Without this the two ran
+   * together and the screens were legible at the same time -- the blocks
+   * below merely stagger from here. */
+  animation-delay: var(--pg-in-delay);
 }
 
+.page.leaving > .body .head,
 .page.leaving > .body > .account,
 .page.leaving > .body > .rail-stats,
 .page.leaving > .body > .live,
@@ -241,18 +260,24 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 .page.leaving > .body > .sel-left,
 .page.leaving > .body > .sel-right > .stars,
 .page.leaving > .body > .sel-right > .attrs,
-.page.leaving > .body > .sel-right > .chips {
-  animation: pg-out var(--pg-out) var(--pg-ease) both;
+.page.leaving > .body > .sel-right > .chips,
+.page.leaving > .body > .judges,
+.page.leaving > .foot {
+  /* `forwards`, not `backwards`: the screen stays laid out until its timer
+   * fires, and it has to still be invisible when it does. */
+  animation: pg-out var(--pg-out) var(--pg-ease) forwards;
 }
 
-/* The stagger. On the select screen the title keeps its own band, so the
- * right-hand column enters as three separate figures rather than one slab. */
+/* The stagger: the identity band lands first, then the figures it belongs to,
+ * then the incidental detail. On song select the right-hand column is three
+ * separate readings rather than one slab. */
 .page.active > .body > .rail-stats,
 .page.active > .body > .live-stats,
 .page.active > .body > .verdict-side,
-.page.active > .body > .sel-right > .stars { animation-delay: var(--pg-step); }
-.page.active > .body > .sel-right > .attrs { animation-delay: calc(var(--pg-step) * 2); }
-.page.active > .body > .sel-right > .chips { animation-delay: calc(var(--pg-step) * 3); }
+.page.active > .body > .sel-right > .stars,
+.page.active > .foot { animation-delay: calc(var(--pg-in-delay) + var(--pg-step)); }
+.page.active > .body > .sel-right > .attrs { animation-delay: calc(var(--pg-in-delay) + var(--pg-step) * 2); }
+.page.active > .body > .sel-right > .chips { animation-delay: calc(var(--pg-in-delay) + var(--pg-step) * 3); }
 
 @keyframes pg-in {
   from { opacity: 0; transform: translate3d(0, calc(var(--pg-dir, 1) * var(--pg-rise)), 0); }
@@ -269,8 +294,10 @@ body[data-page="results"] .backdrop { filter: blur(1.5px) brightness(.44) satura
 /* The scripting flag covers the normal case; this catches a system setting
  * changed while the page is already open. */
 @media (prefers-reduced-motion: reduce) {
-  .page.active > .body > *,
-  .page.leaving > .body > * { animation: none; }
+  .page.active > .body,
+  .page.active > .foot,
+  .page.leaving > .body,
+  .page.leaving > .foot { animation: none; }
 }
 
 /* The content group. `margin: auto 0` centres it and degrades to a

@@ -13,92 +13,137 @@
 <iframe id="f" src="/?demo=home"></iframe>
 <pre id="out">running…</pre>
 <script>
-/* Drives the overlay through real state changes inside an iframe and samples
- * what the browser computed, rather than what the source implies. Nothing is
- * injected into the app: this only calls the handle app.js already exposes
- * (window.osuLive) and reads styles back.
+/* Drives real state changes inside an iframe and reports what the browser
+ * computed. Nothing is injected into the app: it only calls the handle app.js
+ * already exposes (window.osuLive) and reads styles back.
  *
- * Opacity alone cannot tell a rise from a descend, so the transform matrix is
- * sampled too -- its last component is the block's vertical offset. */
+ * The question this answers is the one a screenshot cannot: at any single
+ * instant, is more than one screen legible? It walks both screens, multiplies
+ * each element's opacity down the tree, and reports every element carrying
+ * text that is still visible -- so a forgotten selector shows up by name
+ * rather than as "it looked a bit odd". */
 const f = document.getElementById('f');
 const out = document.getElementById('out');
 const lines = [];
 const say = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
 
-const dy = (m) => {
-  const n = /matrix\(([^)]+)\)/.exec(m);
-  return n ? Number(n[1].split(',')[5]).toFixed(1) : m;
-};
+const dy = (m) => { const n = /matrix\(([^)]+)\)/.exec(m); return n ? Number(n[1].split(',')[5]).toFixed(1) : m; };
 
 f.addEventListener('load', () => {
   const w = f.contentWindow;
   const d = f.contentDocument;
   if (!w.osuLive) { say('FAIL: window.osuLive is not exposed'); return; }
+  const cs = (el) => w.getComputedStyle(el);
   say('MOTION inside the frame: ' + w.osuLive.MOTION);
 
-  const settle = 200;
-  const sample = (sel, label, done) => {
-    const rows = [];
-    const t0 = performance.now();
-    let n = 0;
-    const id = setInterval(() => {
-      const el = d.querySelector(sel);
-      const cs = getComputedStyle(el);
-      rows.push({ t: Math.round(performance.now() - t0), o: Number(cs.opacity).toFixed(2), y: dy(cs.transform) });
-      if (++n >= 24) { clearInterval(id); report(label, sel, rows); done(); }
-    }, 16);
+  /* Everything carrying its own text that is actually painted right now,
+   * named by the nearest class that identifies it.
+   *
+   * `display: none` has to be checked at every level, not just on the root:
+   * computed opacity is still reported for the contents of a hidden box, so
+   * the judgement rail -- which landscape hides -- otherwise shows up as
+   * legible text on every screen at full opacity. The status rail is skipped
+   * for the opposite reason: it is the one block deliberately left alone, so
+   * it is checked separately, by comparing its text across the two screens. */
+  function legible(page) {
+    const root = d.getElementById('page-' + page);
+    /* The root has to be checked too: a descendant of a hidden box still
+     * reports its own `display` (flex, block), never `none`, so the contents
+     * of a screen that has already been put away read as legible for ever. */
+    if (!root || cs(root).display === 'none') return [];
+    const found = [];
+    const walk = (el, inherited) => {
+      const s = cs(el);
+      if (s.display === 'none' || s.visibility === 'hidden') return;
+      const o = inherited * Number(s.opacity);
+      if (o <= 0.04) return;
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+      if (own) found.push(String(el.className || el.tagName).split(/\s+/).slice(-1)[0] + '@' + o.toFixed(2));
+      for (const c of el.children) walk(c, o);
+    };
+    for (const c of root.children) {
+      if (c.classList && c.classList.contains('rail-right')) continue;
+      walk(c, 1);
+    }
+    return found;
+  }
+
+  const railText = (page) => {
+    const el = d.querySelector('#page-' + page + ' .rail-right');
+    return el ? el.textContent.replace(/\s+/g, ' ').trim() : '(none)';
   };
 
-  const report = (label, sel, rows) => {
-    say('');
-    say('── ' + label + '  (' + sel + ')');
-    say('     ms    opacity   translateY');
-    for (const r of rows) if (r.t <= 320) say('    ' + String(r.t).padStart(4) + '     ' + r.o.padStart(4) + '      ' + String(r.y).padStart(7));
-    const first = Number(rows[0].o);
-    const last = Number(rows[rows.length - 1].o);
-    say('    first opacity ' + first + ' -> settled ' + last + ';  start offset ' + rows[0].y + 'px');
-  };
+  const PAGES = ['home', 'select', 'play', 'results'];
+  const transitions = [['home', 'select'], ['select', 'play'], ['play', 'results'], ['results', 'select']];
+  const rows = [];
 
-  const phase1 = () => {
-    w.osuLive.render(w.osuLive.demoState('select'));
-    sample('.page-select .sel-left', 'forward: home -> select', () => setTimeout(phase2, settle));
-  };
-  const phase2 = () => {
-    w.osuLive.render(w.osuLive.demoState('results'));
+  const runTurn = (i) => {
+    if (i >= transitions.length) return finish();
+    const [from, to] = transitions[i];
+    w.osuLive.render(w.osuLive.demoState(from));
     setTimeout(() => {
-      w.osuLive.render(w.osuLive.demoState('select'));
-      sample('.page-select .sel-left', 'backward: results -> select', () => setTimeout(phase3, settle));
-    }, settle);
+      w.osuLive.render(w.osuLive.demoState(to));
+      const t0 = performance.now();
+      let n = 0;
+      const id = setInterval(() => {
+        const t = Math.round(performance.now() - t0);
+        const a = legible(from), b = legible(to);
+        if (a.length && b.length) rows.push({ turn: from + '->' + to, t, from: a, to: b });
+        if (++n >= 52) { clearInterval(id); setTimeout(() => runTurn(i + 1), 260); }
+      }, 10);
+    }, 260);
   };
-  /* The second block on a screen is meant to follow the first, not arrive with
-   * it: same instant, two selectors, one of them delayed. */
-  const phase3 = () => {
+
+  const finish = () => {
+    say('');
+    say('── instants where BOTH screens had legible text');
+    if (!rows.length) {
+      say('    none, in any of the four turns');
+    } else {
+      const byTurn = {};
+      for (const r of rows) (byTurn[r.turn] = byTurn[r.turn] || []).push(r);
+      for (const [turn, list] of Object.entries(byTurn)) {
+        say('    ' + turn + ': ' + list.length + ' samples, ' + list[0].t + '-' + list[list.length - 1].t + 'ms');
+        say('      outgoing: ' + [...new Set(list.flatMap((r) => r.from))].join(' '));
+        say('      incoming: ' + [...new Set(list.flatMap((r) => r.to))].join(' '));
+      }
+    }
+    say('');
+    say('── the status rail, which is deliberately not animated');
+    for (const [from, to] of transitions) {
+      const a = railText(from), b = railText(to);
+      say('    ' + (from + '->' + to).padEnd(16) + (a === b ? 'identical, so doubling is invisible' : 'DIFFERS: "' + a + '" vs "' + b + '"'));
+    }
+    say('');
+    say('VERDICT: ' + (rows.length ? 'STILL OVERLAPS' : 'one screen at a time'));
+
+    /* And the shape of the hand-over itself, so the fix is not just "nothing
+     * overlaps because nothing animates". */
     w.osuLive.render(w.osuLive.demoState('home'));
     setTimeout(() => {
       w.osuLive.render(w.osuLive.demoState('select'));
       const t0 = performance.now();
+      const seen = [];
       let n = 0;
-      const rows = [];
       const id = setInterval(() => {
-        const a = Number(getComputedStyle(d.querySelector('.page-select .sel-left')).opacity);
-        const b = Number(getComputedStyle(d.querySelector('.page-select .sel-right > .stars')).opacity);
-        rows.push({ t: Math.round(performance.now() - t0), a: a.toFixed(2), b: b.toFixed(2) });
-        if (++n >= 20) {
+        const t = Math.round(performance.now() - t0);
+        const h = cs(d.querySelector('.page-home .head'));
+        const s = cs(d.querySelector('.page-select .head'));
+        seen.push({ t, ho: Number(h.opacity).toFixed(2), so: Number(s.opacity).toFixed(2), sy: dy(s.transform) });
+        if (++n >= 30) {
           clearInterval(id);
           say('');
-          say('── stagger: the first block against the second');
-          say('     ms   sel-left  stars');
-          for (const r of rows) if (r.t <= 260) say('    ' + String(r.t).padStart(4) + '     ' + r.a + '     ' + r.b);
-          const lag = rows.findIndex((r) => Number(r.b) > 0.02) - rows.findIndex((r) => Number(r.a) > 0.02);
-          say('    the second block starts ' + lag + ' samples after the first');
+          say('── home -> select  (head band, both screens)');
+          say('     ms   home head   select head   select dY');
+          for (const r of seen) if (r.t <= 380) say('    ' + String(r.t).padStart(4) + '      ' + r.ho + '         ' + r.so + '        ' + String(r.sy).padStart(6));
           say('');
           say('DONE');
         }
-      }, 16);
-    }, settle);
+      }, 12);
+    }, 260);
   };
 
-  phase1();
+  runTurn(0);
 });
 </script>
 </body>

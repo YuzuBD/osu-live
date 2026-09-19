@@ -148,18 +148,80 @@ const scen = {
 /* ── the timing the two files have to agree on ─────────────────────────── */
 
 console.log('== static ==');
-const leaveMs = Number((appjs.match(/const PAGE_LEAVE_MS = (\d+);/) || [])[1]);
-const outMs = Number((style.match(/--pg-out:\s*(\d+)ms/) || [])[1]);
+const num = (src, re) => Number((src.match(re) || [])[1]);
+const leaveMs = num(appjs, /const PAGE_LEAVE_MS = (\d+);/);
+const outMs = num(style, /--pg-out:\s*(\d+)ms/);
+const inDelayMs = num(style, /--pg-in-delay:\s*(\d+)ms/);
 chk('PAGE_LEAVE_MS is declared', Number.isFinite(leaveMs), String(leaveMs));
 chk('--pg-out is declared', Number.isFinite(outMs), String(outMs));
-chk('the screen is held at least as long as its exit', leaveMs > outMs, `${leaveMs}ms > ${outMs}ms`);
-/* Each of the four screens has to animate one of the shell's siblings; a
- * selector that names a class the markup does not have would leave that screen
- * cutting in with no transition at all. */
-const animated = [...style.matchAll(/\.page\.active > \.body > (?:\.sel-right > )?\.([\w-]+)/g)].map((m) => m[1]);
-const styled = new Set([...html.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)));
-const orphan = [...new Set(animated)].filter((c) => !styled.has(c));
-chk('every animated block exists in the markup', orphan.length === 0, orphan.join(', ') || `${new Set(animated).size} classes`);
+chk('--pg-in-delay is declared', Number.isFinite(inDelayMs), String(inDelayMs));
+/* The hand-over. These three are the same fact written in three places and
+ * nothing but this ties them together. Getting the first one wrong is what
+ * made two screens legible at once: the entry has to wait out the exit. */
+chk('the entry starts after the exit ends', inDelayMs >= outMs, `${inDelayMs}ms >= ${outMs}ms`);
+chk('a leaving screen outlives its own exit', leaveMs >= outMs, `${leaveMs}ms >= ${outMs}ms`);
+
+/* ── every painted element has to be animated ──────────────────────────────
+ * This is the bug class behind the doubled text. A screen is a fixed layer
+ * over the previous one and has no background of its own, so anything left
+ * out of the animation is drawn by both screens at once -- identical footing
+ * for a moment, then two different values on top of each other. Checking it
+ * structurally is the only way to catch it: on screen it just looks wrong,
+ * and only while the switch is happening.
+ */
+const section = style
+  .slice(style.indexOf('switching screens'), style.indexOf('@keyframes pg-in'))
+  /* Comments are stripped first: the prose above a rule lands in the same
+   * split as its first selector and would hide it. */
+  .replace(/\/\*[\s\S]*?\*\//g, '');
+const animated = new Set();
+for (const block of section.matchAll(/([^{}]+)\{/g)) {
+  for (const sel of block[1].split(',')) {
+    const s = sel.trim();
+    if (!s.startsWith('.page.active')) continue;
+    const last = s.match(/\.([a-z][\w-]*)$/);
+    if (last && last[1] !== 'active') animated.add(last[1]);
+  }
+}
+chk('the transition animates something', animated.size > 0, [...animated].join(' '));
+
+/* A tag-depth scan is enough to find which elements carry text of their own;
+ * index.html has no scripting and its comments are stripped first. */
+const VOID = new Set(['img', 'br', 'input', 'hr', 'meta', 'link']);
+function parse(body) {
+  const root = { tag: 'root', cls: [], text: false, children: [] };
+  const stack = [root];
+  const re = /<(\/?)([a-z]+)([^>]*?)(\/?)>/g;
+  let last = 0, m;
+  while ((m = re.exec(body))) {
+    if (body.slice(last, m.index).trim()) stack[stack.length - 1].text = true;
+    last = re.lastIndex;
+    const [, close, tag, attrs, selfClose] = m;
+    if (close) { stack.pop(); continue; }
+    const cls = ((attrs.match(/class="([^"]*)"/) || [, ''])[1]).split(/\s+/).filter(Boolean);
+    const node = { tag, cls, text: false, children: [] };
+    stack[stack.length - 1].children.push(node);
+    if (!VOID.has(tag) && !selfClose) stack.push(node);
+  }
+  return root;
+}
+/* The status rail is the deliberate exception: its text really is the same on
+ * all four screens, so it is held still on purpose. */
+const exempt = (node, covered) => node.cls.includes('rail-right') || covered;
+function uncovered(node, covered) {
+  const now = covered || node.cls.some((c) => animated.has(c));
+  const bad = [];
+  if (node.text && !exempt(node, now)) bad.push(node.cls.join('.') || node.tag);
+  for (const child of node.children) bad.push(...uncovered(child, exempt(node, now)));
+  return bad;
+}
+
+const clean = html.replace(/<!--[\s\S]*?-->/g, '');
+for (const m of clean.matchAll(/<section class="page page-([a-z]+)"[^>]*>([\s\S]*?)<\/section>/g)) {
+  const [, name, body] = m;
+  const bad = uncovered(parse(body), false);
+  chk(`every painted part of ${name} is animated`, bad.length === 0, bad.join(', ') || 'all covered');
+}
 
 /* ── the switch, with motion on ─────────────────────────────────────────── */
 
